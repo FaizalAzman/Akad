@@ -9,6 +9,7 @@ from akad import DataContractValidator, DataContractBreachError
 validator = DataContractValidator(
     contract_path="contracts/sales.yaml",
     registry_url="http://localhost:8000",   # optional — enables breach history
+    registry_token=None,                    # optional — defaults to $AKAD_API_TOKEN
     extra_validators=[MyValidator()],       # optional plugins
     notifiers=[],                           # [] disables notifications
 )

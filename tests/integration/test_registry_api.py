@@ -48,10 +48,88 @@ class TestContractPublish:
         assert resp.status_code == 200
         assert resp.json()["version"] == "2.0.0"
 
-    def test_publish_duplicate_version_overwrites(self, registry_client):
+    def test_republishing_identical_version_is_a_noop(self, registry_client):
+        first = registry_client.post("/contracts/", json=self._payload("dupe", "1.0.0"))
+        again = registry_client.post("/contracts/", json=self._payload("dupe", "1.0.0"))
+
+        assert again.status_code == 200
+        assert again.json()["id"] == first.json()["id"]
+        assert len(registry_client.get("/contracts/dupe/versions").json()) == 1
+
+    def test_republishing_version_with_different_content_is_rejected(self, registry_client):
         registry_client.post("/contracts/", json=self._payload("dupe", "1.0.0"))
-        resp = registry_client.post("/contracts/", json=self._payload("dupe", "1.0.0"))
+        changed = self._payload("dupe", "1.0.0")
+        changed["content"]["on_breach"] = "fail"
+
+        resp = registry_client.post("/contracts/", json=changed)
+
+        assert resp.status_code == 409
+        assert "immutable" in resp.json()["detail"]
+        stored = registry_client.get("/contracts/dupe/versions/1.0.0").json()
+        assert stored["content"]["on_breach"] == "warn"
+
+    def test_non_semver_version_is_rejected(self, registry_client):
+        resp = registry_client.post("/contracts/", json=self._payload("loose", "1.0"))
+        assert resp.status_code == 422
+
+    def test_prerelease_semver_is_accepted(self, registry_client):
+        resp = registry_client.post("/contracts/", json=self._payload("pre", "2.0.0-rc.1"))
         assert resp.status_code == 201
+
+    def test_version_must_match_contract_metadata(self, registry_client):
+        payload = self._payload("mismatch", "1.0.0")
+        payload["version"] = "1.0.1"
+        resp = registry_client.post("/contracts/", json=payload)
+        assert resp.status_code == 422
+
+    def test_exactly_one_current_version_after_several_publishes(self, registry_client):
+        for version in ("1.0.0", "1.1.0", "2.0.0"):
+            registry_client.post("/contracts/", json=self._payload("multi", version))
+
+        versions = registry_client.get("/contracts/multi/versions").json()
+        assert [v["version"] for v in versions if v["is_current"]] == ["2.0.0"]
+
+
+class TestContractConstraints:
+    """The database itself enforces immutability, independent of the API."""
+
+    def _session(self, tmp_path):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        from registry.database import Base
+
+        engine = create_engine(f"sqlite:///{tmp_path / 'constraints.db'}")
+        Base.metadata.create_all(engine)
+        return Session(engine)
+
+    def _record(self, version, *, current):
+        from registry.models import ContractRecord
+        return ContractRecord(name="c", version=version, content="{}", is_current=current)
+
+    def test_duplicate_version_violates_unique_index(self, tmp_path):
+        import pytest
+        from sqlalchemy.exc import IntegrityError
+
+        with self._session(tmp_path) as db:
+            db.add_all([self._record("1.0.0", current=False), self._record("1.0.0", current=False)])
+            with pytest.raises(IntegrityError):
+                db.commit()
+
+    def test_second_current_version_violates_unique_index(self, tmp_path):
+        import pytest
+        from sqlalchemy.exc import IntegrityError
+
+        with self._session(tmp_path) as db:
+            db.add_all([self._record("1.0.0", current=True), self._record("2.0.0", current=True)])
+            with pytest.raises(IntegrityError):
+                db.commit()
+
+    def test_many_non_current_versions_are_allowed(self, tmp_path):
+        with self._session(tmp_path) as db:
+            db.add_all([self._record(v, current=False) for v in ("1.0.0", "1.1.0", "1.2.0")])
+            db.add(self._record("2.0.0", current=True))
+            db.commit()
 
 
 class TestContractRetrieval:

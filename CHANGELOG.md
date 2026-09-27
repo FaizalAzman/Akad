@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/), versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Breaking (registry)
+- **Registry writes need an API token.** `POST /contracts/` and `POST /validation-results/` require `Authorization: Bearer <token>`, checked against `AKAD_API_TOKENS` (comma-separated). With no tokens configured, writes are refused. Clients send `$AKAD_API_TOKEN`, or `--token` on the CLI, or `registry_token=` on `DataContractValidator`. Set `AKAD_REGISTRY_READS_REQUIRE_AUTH=true` to require a token for reads too. A pipeline posting a result without a valid token still completes its run, with a warning.
+- **Published contract versions are immutable.** Re-publishing identical content returns `200` without creating a row. Different content under an existing version returns `409`. Versions must be semver, and must match the contract's `metadata`.
+
+### Fixed
+- Two concurrent publishes of the same contract could both end up current. One current version per contract is now enforced by a database index.
+
+### Added
+- Alembic schema migrations, run automatically on registry startup. Databases created by earlier registries are adopted in place. If they contain the same version published twice, the migration stops, lists the duplicates, and deletes nothing. On PostgreSQL, a lock makes simultaneous startups (several workers or replicas) take turns.
+- `RegistryClient.publish_contract` returns `True` when it created the version and `False` for an identical re-publish. `akad publish` reports the latter as "Already published … nothing changed".
+- "Running the Registry" docs page covering auth, versions and migrations.
+- CI runs the migration tests against PostgreSQL as well as SQLite.
+
 ## [1.4.0] - 2026-09-27
 
 ### Fixed

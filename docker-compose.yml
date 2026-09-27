@@ -20,6 +20,8 @@ services:
       dockerfile: Dockerfile.registry
     environment:
       DATABASE_URL: postgresql://akad:akad_secret@db:5432/akad
+      # Development token only. Set AKAD_API_TOKENS to real secrets outside local dev.
+      AKAD_API_TOKENS: ${AKAD_API_TOKENS:-dev-token-change-me}
     ports:
       - "8000:8000"
     depends_on:
@@ -39,6 +41,7 @@ services:
       dockerfile: Dockerfile.dashboard
     environment:
       REGISTRY_URL: http://registry:8000
+      AKAD_API_TOKEN: ${AKAD_API_TOKEN:-dev-token-change-me}  # only used if reads require auth
     ports:
       - "8501:8501"
     depends_on:
@@ -49,6 +52,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.lab
+    environment:
+      AKAD_API_TOKEN: ${AKAD_API_TOKEN:-dev-token-change-me}
     depends_on:
       registry:
         condition: service_healthy

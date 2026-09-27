@@ -50,7 +50,7 @@ A validator is never allowed to crash the run: exceptions are caught and convert
 
 ### Registry (`registry/`)
 
-A FastAPI service backed by SQLAlchemy (PostgreSQL in production, SQLite for local dev). Stores contract versions and validation history, and serves them over a REST API with interactive docs at `/docs`. The SDK's `RegistryClient` treats registry connectivity as best-effort for *writes* (publishing a contract or posting a result never crashes a pipeline if the registry is down) but as load-bearing for the *read* that fetches a contract by name — a missing contract is a real failure, not something to silently ignore.
+A FastAPI service backed by SQLAlchemy (PostgreSQL in production, SQLite for local dev). Stores contract versions and validation history, and serves them over a REST API with interactive docs at `/docs`. The SDK's `RegistryClient` treats posting a validation result as best-effort (a registry outage never crashes a pipeline run), but publishing a contract and fetching one by name as load-bearing: a publish that silently didn't happen, or a missing contract, is a real failure. Writes need a bearer token, published versions are immutable, and the schema is migrated on startup. See [Running the Registry](registry.md).
 
 ### Dashboard (`dashboard/`)
 

@@ -4,7 +4,11 @@ Auto-generated from docstrings in the source. See [SDK Reference](sdk-reference.
 
 ::: akad.sdk.DataContractValidator
 
+::: akad.sdk.DataContractError
+
 ::: akad.sdk.DataContractBreachError
+
+::: akad.sdk.DataContractEvaluationError
 
 ::: akad.engine.validate
 

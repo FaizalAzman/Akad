@@ -9,6 +9,22 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      # Disposable database for the registry migration tests (AKAD_TEST_POSTGRES_URL)
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: akad
+          POSTGRES_DB: akad_test
+          # Job-local throwaway database: no password rather than a literal one in the repo
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U akad"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -21,6 +37,8 @@ jobs:
         run: uv sync
 
       - name: Run tests
+        env:
+          AKAD_TEST_POSTGRES_URL: postgresql://akad@localhost:5432/akad_test
         run: uv run pytest
 
   lint:

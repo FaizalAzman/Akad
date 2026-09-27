@@ -31,6 +31,7 @@ class DataContractValidator:
         contract_path: str | Path | None = None,
         contract_name: str | None = None,
         registry_url: str | None = None,
+        registry_token: str | None = None,
         extra_validators: list | None = None,
         notifiers: list | None = None,
         _registry_client: RegistryClient | None = None,  # injectable — used in tests
@@ -45,7 +46,8 @@ class DataContractValidator:
         if _registry_client is not None:
             self.registry = _registry_client
         elif registry_url:
-            self.registry = RegistryClient(registry_url)
+            # registry_token falls back to $AKAD_API_TOKEN inside RegistryClient
+            self.registry = RegistryClient(registry_url, api_token=registry_token)
         else:
             self.registry = None
 

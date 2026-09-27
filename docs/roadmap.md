@@ -175,9 +175,9 @@ Goal: nothing in the current product gives a wrong answer.
 - [x] **B2** (immediate fix): `decimal` and `date` columns read from Parquet pass their type checks, and `akad infer` detects them.
 - [ ] A type system that understands Arrow: check against the Arrow schema before converting to pandas. Distinguish `date` from `timestamp`, support `decimal(p,s)`, and handle timezones.
 - [x] **B3**: `publish_contract` raises on failure. The CLI exits non-zero and prints the registry's error.
-- [ ] **B4**: Unique `(name, version)`, `409 Conflict` on republish, atomic "current" flip, semver validation.
-- [ ] **B5**: Token-based auth on registry writes (API keys), read-only by default for anonymous users.
-- [ ] Alembic migrations in place of `create_all`.
+- [x] **B4**: Unique `(name, version)`, `409 Conflict` on republishing changed content (identical content is a no-op), one current version per contract enforced by the database, semver validation.
+- [x] **B5**: Token-based auth on registry writes (API keys), with reads open by default and optionally authenticated.
+- [x] Alembic migrations in place of `create_all`, run on startup, adopting pre-migration databases in place.
 - [ ] Lower the core Python floor to 3.10 (keep 3.12 for the registry and dashboard if needed).
 - [ ] Remove or implement the dead model fields (`catalog_*`, `consumers`) and document what exists.
 
@@ -329,7 +329,7 @@ The finish line is **engineering quality, not adoption**. A phase counts as done
 ## 8. Immediate next steps
 
 1. ~~Fix B1–B3 and ship them~~ (done: **v1.4.0**).
-2. Fix B4 and B5: immutable registry versions, API tokens on writes, Alembic migrations. Phase 4's audit evidence depends on contract versions that can't change.
+2. ~~Fix B4 and B5: immutable registry versions, API tokens on writes, Alembic migrations~~ (done).
 3. Write a one-page mapping from `datacontract/v1` to ODCS v3 and decide how extension fields are handled.
 4. Build the OpenLineage emitter and an Airflow operator: the smallest change that makes Akad visible to the rest of the platform.
 5. Start the MFRS 9 / credit-risk rule pack, using the [BNM worked example](examples.md) and a synthetic financing book as its test data.

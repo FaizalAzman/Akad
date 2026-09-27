@@ -5,6 +5,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from registry.auth import require_write_token
 from registry.database import get_db
 from registry.models import ValidationResultRecord
 from registry.schemas import ValidationResultDetail, ValidationResultRequest, ValidationResultSummary
@@ -12,7 +13,8 @@ from registry.schemas import ValidationResultDetail, ValidationResultRequest, Va
 router = APIRouter()
 
 
-@router.post("/", status_code=201, response_model=ValidationResultSummary)
+@router.post("/", status_code=201, response_model=ValidationResultSummary,
+             dependencies=[Depends(require_write_token)])
 def store_result(req: ValidationResultRequest, db: Session = Depends(get_db)):
     record = ValidationResultRecord(
         contract_name=req.contract_name,

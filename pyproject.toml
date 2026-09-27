@@ -101,6 +101,7 @@ include = ["akad*", "registry*", "dashboard*"]
 
 [tool.setuptools.package-data]
 dashboard = ["templates/*.html"]
+registry  = ["migrations/script.py.mako"]
 
 [tool.ruff]
 target-version = "py312"
@@ -119,6 +120,7 @@ ignore = [
 "tests/*" = [
     "S101",  # bare `assert` is pytest's own idiom, not a stripped-in-prod risk
     "S108",  # hardcoded /tmp paths are just placeholder field values, never written to
+    "S105", "S106",  # fixture API tokens for the test registry, not real credentials
 ]
 
 [tool.mypy]

@@ -103,8 +103,10 @@ If the contract can't be evaluated at all (unreadable dataset, erroring rule) th
 ### Registry
 
 - REST API (FastAPI) — publish contracts, fetch by name, list versions, store validation results
-- PostgreSQL backend for production; SQLite for local dev
-- Interactive API docs at `/docs`
+- Published versions are immutable (identical re-publish is a no-op, changed content is rejected); versions must be semver
+- Bearer-token auth on writes (`AKAD_API_TOKENS`), optionally on reads too
+- PostgreSQL backend for production; SQLite for local dev. Schema migrations run automatically on startup
+- Interactive API docs at `/docs`. See [Running the Registry](https://parmenidessartre.github.io/Akad/registry/) for operating it
 
 ### Observability Dashboard
 
@@ -207,6 +209,12 @@ docker compose up -d
 
 - Registry API: `http://localhost:8000`
 - Dashboard: `http://localhost:8501`
+
+Writes to the registry need an API token. The compose file sets a development token, `dev-token-change-me`, unless you set `AKAD_API_TOKENS` yourself:
+
+```bash
+export AKAD_API_TOKEN=dev-token-change-me   # picked up by the CLI and the SDK
+```
 
 ### Step 3 — Publish the contract
 
@@ -499,8 +507,8 @@ uv sync --group lint
 uv run ruff check .
 uv run mypy
 
-# Start registry locally
-uv run uvicorn registry.main:app --reload --port 8000
+# Start registry locally (writes need a token: export AKAD_API_TOKEN=local-dev for the CLI)
+AKAD_API_TOKENS=local-dev uv run uvicorn registry.main:app --reload --port 8000
 
 # Start dashboard
 uv run uvicorn dashboard.main:app --reload --port 8501
