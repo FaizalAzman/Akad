@@ -329,7 +329,7 @@ The finish line is **engineering quality, not adoption**. A phase counts as done
 ## 8. Immediate next steps
 
 1. ~~Fix B1–B3 and ship them~~ (done: **v1.4.0**).
-2. ~~Fix B4 and B5: immutable registry versions, API tokens on writes, Alembic migrations~~ (done).
+2. ~~Fix B4 and B5: immutable registry versions, API tokens on writes, Alembic migrations~~ (done: **v2.0.0**).
 3. Write a one-page mapping from `datacontract/v1` to ODCS v3 and decide how extension fields are handled.
 4. Build the OpenLineage emitter and an Airflow operator: the smallest change that makes Akad visible to the rest of the platform.
 5. Start the MFRS 9 / credit-risk rule pack, using the [BNM worked example](examples.md) and a synthetic financing book as its test data.
