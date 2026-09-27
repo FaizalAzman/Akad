@@ -40,7 +40,7 @@ So the plan is to **commoditise the parts everyone has** by adopting the open st
 - **Ecosystem:** first-class Airflow provider, Dagster, dbt, Prefect, Databricks Workflows, Unity Catalog, OpenLineage, DataHub, OpenMetadata, Prometheus/OTel, and a Terraform provider and Helm chart.
 - **Product surface:** a versioned REST API with a deprecation policy, Python and Java/Scala SDKs, a CLI, a real web UI, docs with tutorials and reference, and published benchmarks.
 
-Adoption is tracked (see §6) but does not decide whether a phase gets built. Engineering quality gates do.
+Adoption is tracked (see §6) but does not decide whether an active phase gets built; engineering quality gates do. The platform-service phases (3 and 5) are deferred until there is demand for them (see [Current focus](#current-focus)).
 
 ---
 
@@ -155,6 +155,18 @@ Akad splits into three layers, each usable alone:
 
 Phases are sequential in priority, not strictly in time. Every phase ends with a **gate** (§6).
 
+### Current focus
+
+**Active: Phases 0, 1, 2 and 4. Deferred: Phases 3 and 5.**
+
+The active phases produce a complete, credible tool for a data team at a bank or fintech: correct results, it fits into their orchestrator and lineage tooling, checks run inside their warehouse, and it ships regulated-finance rule packs with audit evidence. Phases 3 and 5 turn Akad into a multi-team platform service, which only pays off once several teams depend on it.
+
+Phases 3 and 5 are reactivated when **either** of these holds:
+- at least three teams run Akad in production and ask for shared governance (consumer sign-off, SSO, multi-tenancy), or
+- Akad is taken forward as a commercial or consulting product.
+
+Within the active phases, priority follows what banks in the region actually run: **Airflow** first among orchestrators, and **Databricks/Spark plus one enterprise RDBMS (Oracle or SQL Server)** first among warehouses.
+
 ### Phase 0: Credibility (≈ 2–3 weeks) · *"Correct before clever"*
 Goal: nothing in the current product gives a wrong answer.
 
@@ -178,27 +190,29 @@ Goal: a team already using Airflow, Dagster, dbt or a catalog can adopt Akad wit
 - [ ] **`akad diff` on ODCS**, and as a GitHub Action that comments on PRs with breaking changes.
 - [ ] **OpenLineage emitter.** Each validation emits a run event with a `DataQualityAssertions` facet.
 - [ ] **Airflow provider package** (`apache-airflow-providers-akad` style): operator, deferrable sensor, connection type, lineage integration.
-- [ ] **Dagster integration**: contract → asset checks factory.
-- [ ] **dbt import**: `akad import dbt --manifest target/manifest.json`.
+- [ ] **Dagster integration** *(lower priority)*: contract → asset checks factory.
+- [ ] **dbt import** *(lower priority)*: `akad import dbt --manifest target/manifest.json`.
 - [ ] **Structured results schema** (JSON Schema published, versioned) so downstream tools can depend on it.
 - [ ] Row-level evidence: each failed clause carries the violating row count, a capped sample of primary keys, and the SQL or expression that found them.
 
-**Exit criteria:** the same contract runs from the CLI, Airflow and Dagster, and its results appear in Marquez or DataHub with no custom glue.
+**Exit criteria:** the same contract runs from the CLI and Airflow, and its results appear in Marquez or DataHub with no custom glue.
 
 ### Phase 2: Scale (≈ 8–10 weeks) · *"Move the check, not the data"*
 Goal: validate a 1 TB warehouse table or a partitioned Iceberg table in seconds to minutes, with bounded memory.
 
 - [ ] **A rule compiler behind a backend interface**: contract clauses → an IR → SQL (via SQLGlot) / DuckDB / PySpark / pandas. Aggregate checks (null %, duplicates, min/max, row count, freshness) become a single scan query.
 - [ ] **Business rules compiled to SQL** as `COUNT(*) WHERE NOT (<expr>)`, using a safe, restricted expression grammar that is shared across backends instead of relying on `df.eval` semantics.
-- [ ] Connectors: Snowflake, BigQuery, Databricks/Unity, Postgres, Trino; Iceberg and Delta via DuckDB; object storage with native last-modified for freshness.
+- [ ] Connectors, in priority order: Databricks/Unity (and PySpark), Oracle or SQL Server, Postgres, Iceberg and Delta via DuckDB; then Snowflake, BigQuery and Trino. Object storage with native last-modified for freshness.
 - [ ] **Partition- and increment-scoped validation** (only the newly landed data), with an option for whole-table checks on a slower cadence.
 - [ ] **Quarantine / write-audit-publish support**: write failing rows to a quarantine table, or validate an Iceberg branch or Delta version before promoting it.
-- [ ] Metrics: Prometheus endpoint and OTel traces. Results sink table.
+- [ ] Results sink table. Prometheus and OTel metrics *(lower priority)*.
 - [ ] Performance benchmarks published in the docs (rows per second, memory ceiling).
 
 **Exit criteria:** validating a 1B-row table uses constant client memory, and every built-in rule produces identical results on all backends (a cross-backend conformance test suite).
 
 ### Phase 3: Governance control plane (≈ 10–12 weeks) · *"Contracts as agreements, not just tests"*
+> **Deferred** (see [Current focus](#current-focus)). Phase 0's immutable versions and API tokens cover what Phases 1, 2 and 4 depend on.
+
 Goal: the registry becomes where producers and consumers negotiate change.
 
 - [ ] **Publish-time breaking-change gate.** The registry runs `diff` on publish. A breaking change requires a major version bump **and** acknowledgement from registered consumers (or an explicit override with a reason, which is audited).
@@ -223,9 +237,13 @@ Goal: capabilities that generic tools won't prioritise.
 - [ ] **Data classification and PDPA tags** in contracts (PII, confidential), and rules that verify masking or tokenisation.
 - [ ] **Control mapping.** Link contract clauses to internal control IDs and regulatory references (e.g. BNM RMiT, BCBS 239 principles) so compliance teams can report coverage.
 
+Start the first rule pack (credit risk / MFRS 9) alongside Phase 1: it runs on the existing pandas engine and moves to SQL pushdown for free once Phase 2 lands. Cross-dataset rules and snapshot-level evidence need Phase 2's rule compiler.
+
 **Exit criteria:** at least one design-partner institution uses a rule pack and an evidence export in an actual audit or regulatory cycle.
 
 ### Phase 5: Enterprise-grade platform (≈ 16–20 weeks) · *"Operate like Databricks"*
+> **Deferred** (see [Current focus](#current-focus)).
+
 Goal: a platform-team lead at a bank could deploy, secure and operate Akad to the same standard as their commercial vendors.
 
 - [ ] **Deployment:** Helm chart, Terraform provider (`akad_contract`, `akad_consumer`, `akad_policy` resources), container images signed with an SBOM, and air-gapped install.
@@ -243,17 +261,17 @@ Goal: a platform-team lead at a bank could deploy, secure and operate Akad to th
 
 ### Illustrative timeline
 
+For the active phases, with one maintainer working part-time:
+
 ```
-2026 Q4        2027 Q1              2027 Q2               2027 Q3              2027 Q4 →
-├─ Phase 0 ─┤
-            ├──── Phase 1 ────┤
-                              ├───── Phase 2 ─────┤
-                                                  ├────── Phase 3 ──────┤
-                         ├──────────── Phase 4 (design partners, rule packs; runs in parallel) ────────→
-                                                                      ├──────── Phase 5 ────────┤ (2028 Q1–Q2)
+2026 Q4          2027 Q1              2027 Q2              2027 Q3
+├ Phase 0 ┤
+          ├───── Phase 1 ─────┤
+                              ├────── Phase 2 ──────┤
+          ├── Phase 4: MFRS 9 pack ──┤              ├── Phase 4: cross-dataset rules, evidence ──→
 ```
 
-This is roughly 18 months of focused work for 2–3 engineers, or about twice that for a single maintainer.
+Deferred phases (3 and 5) add roughly 12 months of work for a small team if they are reactivated.
 
 ---
 
@@ -279,11 +297,11 @@ The finish line is **engineering quality, not adoption**. A phase counts as done
 | Gate | Pass condition (quality) | Tracked (adoption, non-blocking) |
 |---|---|---|
 | Phase 0 | B1–B5 fixed with regression tests. v1.4 released. | n/a |
-| Phase 1 | ODCS round-trip passes. Airflow, Dagster and dbt integrations have end-to-end tests. OpenLineage events are spec-valid. | Teams running Akad in an orchestrator, and PyPI downloads |
+| Phase 1 | ODCS round-trip passes. The Airflow integration has end-to-end tests. OpenLineage events are spec-valid. | Teams running Akad in an orchestrator, and PyPI downloads |
 | Phase 2 | Conformance suite green on every backend. 1B-row benchmark within memory and time budgets. | Backends actually used |
-| Phase 3 | Breaking-change gate, consumer sign-off and audit log proven end to end. RBAC tested. | Contracts under governance |
+| Phase 3 *(deferred)* | Breaking-change gate, consumer sign-off and audit log proven end to end. RBAC tested. | Contracts under governance |
 | Phase 4 | Each rule pack has worked examples and tests against realistic synthetic data. Evidence export verified as reproducible. | Design partners |
-| Phase 5 | The full platform-grade bar above. | Production deployments |
+| Phase 5 *(deferred)* | The full platform-grade bar above. | Production deployments |
 
 **North-star metric (once there are users):** *contract-protected pipeline runs per week*, meaning runs where an Akad check executed and its result was recorded.
 
@@ -310,7 +328,9 @@ The finish line is **engineering quality, not adoption**. A phase counts as done
 
 ## 8. Immediate next steps
 
-1. Fix B1–B3 (small, high-impact) and ship **v1.3.1**.
-2. Write a one-page ODCS mapping from `datacontract/v1` to ODCS v3 and decide how extension fields are handled.
-3. Build an OpenLineage emitter and an Airflow operator spike: the smallest change that makes Akad visible to the rest of the platform.
-4. Talk to 5–8 data teams at Malaysian banks, takaful operators and fintechs. Validate the regulated-finance positioning before starting Phase 2.
+1. ~~Fix B1–B3~~ (done) and ship **v1.3.1**.
+2. Fix B4 and B5: immutable registry versions, API tokens on writes, Alembic migrations. Phase 4's audit evidence depends on contract versions that can't change.
+3. Write a one-page mapping from `datacontract/v1` to ODCS v3 and decide how extension fields are handled.
+4. Build the OpenLineage emitter and an Airflow operator: the smallest change that makes Akad visible to the rest of the platform.
+5. Start the MFRS 9 / credit-risk rule pack, using the [BNM worked example](examples.md) and a synthetic financing book as its test data.
+6. Talk to data teams at Malaysian banks, takaful operators and fintechs to find 2–3 design partners.
