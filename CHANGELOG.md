@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/), versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **Typos in contracts no longer disappear silently.** A contract key Akad doesn't recognise (such as `freshnes:` or `max_null_percentag:`) used to be dropped without a word, so the rule it declared wasn't enforced and `akad check` still reported the contract as valid. Loading such a contract now emits an `UnknownContractKeyWarning` naming the key and the section it's in. `akad check` and `akad validate` print these warnings, and `akad check --strict` fails on them. Unknown keys will be an error in the next major version.
+- **Error notifications are no longer labelled as breaches.** When a contract couldn't be evaluated, the webhook event was `DATA_CONTRACT_BREACH` and the email said `[Akad BREACH]` with "Failed Clauses (0)" and no reason. The webhook event is now `DATA_CONTRACT_ERROR` for errors, and the payload adds `overall_status`, `error_message` and `errored_clauses`. Each clause now also carries its `status`. The email subject and body name the status and include the error.
+- **`akad history` escapes the contract name.** It was pasted into the query string as-is, so a name containing `&` or a space asked for the wrong thing. `akad list` and `akad history` now go through `RegistryClient`.
+- **`contract_to_yaml_dict` keeps every section.** It copied fields by hand and dropped freshness, notifications, consumers, tags and descriptions.
+- The registry's detail endpoints no longer overwrite the database row's JSON text with a parsed dict to build the response.
+
+### Added
+- `RegistryClient.list_contracts()` and `RegistryClient.list_validation_results(contract_name=None, limit=50)`.
+
+### Removed
+- Contract fields that were accepted but never used: `dataset.catalog_uri`, `dataset.catalog_type`, `dataset.namespace` and `consumers[].slack_webhook`. Contracts that set them still load, with an unknown-key warning.
+
 ## [2.0.0] - 2026-09-27
 
 Only registry deployments are affected. Pipelines that validate without a registry need no changes. See [Upgrading from 1.x](https://parmenidessartre.github.io/Akad/registry/#upgrading-from-1x) for the rollout order.

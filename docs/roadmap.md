@@ -179,7 +179,7 @@ Goal: nothing in the current product gives a wrong answer.
 - [x] **B5**: Token-based auth on registry writes (API keys), with reads open by default and optionally authenticated.
 - [x] Alembic migrations in place of `create_all`, run on startup, adopting pre-migration databases in place.
 - [ ] Lower the core Python floor to 3.10 (keep 3.12 for the registry and dashboard if needed).
-- [ ] Remove or implement the dead model fields (`catalog_*`, `consumers`) and document what exists.
+- [x] Remove the unused model fields (`dataset.catalog_*`, `dataset.namespace`, `consumers[].slack_webhook`). `consumers` stays: it routes email notifications. Unknown keys now warn, so contracts that still set the removed fields are told.
 
 **Exit criteria:** every bug above has a regression test, and a test suite runs a real Parquet file with decimal, date and timestamp columns end to end.
 

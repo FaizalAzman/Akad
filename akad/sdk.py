@@ -38,27 +38,20 @@ class DataContractValidator:
     ):
         if contract_path is not None and contract_name is not None:
             raise ValueError("Provide either contract_path or contract_name, not both.")
-        if contract_path is None and contract_name is None:
-            raise ValueError("One of contract_path or contract_name is required.")
 
-        # Resolve which registry client to use
-        self.registry: RegistryClient | None
-        if _registry_client is not None:
-            self.registry = _registry_client
-        elif registry_url:
-            # registry_token falls back to $AKAD_API_TOKEN inside RegistryClient
-            self.registry = RegistryClient(registry_url, api_token=registry_token)
-        else:
-            self.registry = None
+        # registry_token falls back to $AKAD_API_TOKEN inside RegistryClient
+        self.registry: RegistryClient | None = _registry_client or (
+            RegistryClient(registry_url, api_token=registry_token) if registry_url else None
+        )
 
-        if contract_name is not None:
-            if not self.registry:
-                raise ValueError("registry_url is required when using contract_name.")
-            self.contract = self.registry.get_contract(contract_name)
-        else:
-            if contract_path is None:
-                raise AssertionError("unreachable — guaranteed by the checks above")
+        if contract_path is not None:
             self.contract = load_contract(contract_path)
+        elif contract_name is None:
+            raise ValueError("One of contract_path or contract_name is required.")
+        elif self.registry is None:
+            raise ValueError("registry_url is required when using contract_name.")
+        else:
+            self.contract = self.registry.get_contract(contract_name)
 
         self.extra_validators = extra_validators or []
         self._notifiers       = notifiers  # None → use defaults; [] → disable

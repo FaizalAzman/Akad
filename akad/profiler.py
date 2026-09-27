@@ -14,7 +14,7 @@ from typing import Any
 import pandas as pd
 
 from akad.models.contract import ColumnType, DataContract
-from akad.validators.schema_validator import object_values_are
+from akad.validators.schema_validator import is_integer_like, object_values_are
 
 DEFAULT_MAX_ALLOWED_VALUES_CARDINALITY = 20
 
@@ -25,12 +25,10 @@ def _infer_column_type(s: pd.Series) -> ColumnType:
     if pd.api.types.is_integer_dtype(s):
         return ColumnType.INTEGER
     if pd.api.types.is_float_dtype(s):
-        non_null = s.dropna()
-        # Same leniency as SchemaValidator: pandas promotes an int column
-        # with a single null to float64, but it's still conceptually an int.
-        if not non_null.empty and (non_null % 1 == 0).all():
-            return ColumnType.INTEGER
-        return ColumnType.FLOAT
+        # Same leniency as SchemaValidator: a float column of whole numbers is an
+        # int column pandas promoted because it has a null. An all-null column
+        # stays FLOAT, since there's nothing to suggest it's an integer.
+        return ColumnType.INTEGER if not s.dropna().empty and is_integer_like(s) else ColumnType.FLOAT
     if pd.api.types.is_datetime64_any_dtype(s):
         return ColumnType.TIMESTAMP
     # Parquet decimal128/date32 arrive as object columns of Decimal/date values.
@@ -166,36 +164,11 @@ def generate_contract(
 
 
 def contract_to_yaml_dict(contract: DataContract) -> dict[str, Any]:
-    """Render *contract* as a plain dict for clean YAML dumping — drops the
-    None/default-only noise a raw `model_dump()` would otherwise emit, and
-    JSON-coerces enums so PyYAML doesn't choke on a StrEnum subclass.
+    """Render *contract* as a plain dict for clean YAML dumping: every field that
+    differs from its default, under its YAML name, with enums as plain strings.
+    `on_breach` is always kept so a reader sees the mode even when it's the default.
     """
-    d: dict[str, Any] = {
-        "apiVersion": contract.api_version,
-        "kind": contract.kind,
-        "metadata": {
-            "name": contract.metadata.name,
-            "version": contract.metadata.version,
-            "owner": {
-                "team": contract.metadata.owner.team,
-                "email": contract.metadata.owner.email,
-            },
-        },
-        "dataset": contract.dataset.model_dump(exclude_none=True, mode="json"),
-        "on_breach": contract.on_breach,
-    }
-    if contract.schema_:
-        d["schema"] = {
-            "columns": [
-                c.model_dump(exclude_none=True, mode="json") for c in contract.schema_.columns
-            ],
-        }
-    if contract.volume:
-        d["volume"] = contract.volume.model_dump(exclude_none=True, mode="json")
-    if contract.quality:
-        d["quality"] = [q.model_dump(exclude_none=True, mode="json") for q in contract.quality]
-    if contract.business_rules:
-        d["business_rules"] = [
-            r.model_dump(exclude_none=True, mode="json") for r in contract.business_rules
-        ]
+    d = contract.model_dump(by_alias=True, exclude_none=True, exclude_defaults=True, mode="json")
+    d["apiVersion"] = contract.api_version
+    d.setdefault("on_breach", contract.on_breach)
     return d

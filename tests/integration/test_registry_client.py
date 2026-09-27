@@ -54,6 +54,27 @@ class TestPostValidationResult:
         assert statuses == {"COMPLIANT", "BREACH"}
 
 
+class TestListing:
+    def test_contract_names_with_special_characters_are_escaped(self, akad_registry_client):
+        """A name with '&' or spaces used to be pasted into the query string raw."""
+        for name in ("sales & returns", "sales"):
+            akad_registry_client.post_validation_result(make_validation_result(contract_name=name))
+
+        runs = akad_registry_client.list_validation_results("sales & returns")
+
+        assert [r["contract_name"] for r in runs] == ["sales & returns"]
+
+    def test_limit_is_respected(self, akad_registry_client):
+        for _ in range(3):
+            akad_registry_client.post_validation_result(make_validation_result(contract_name="many"))
+        assert len(akad_registry_client.list_validation_results("many", limit=2)) == 2
+
+    def test_list_contracts_returns_current_versions(self, akad_registry_client):
+        akad_registry_client.publish_contract(make_contract(name="listed", version="1.0.0"))
+        akad_registry_client.publish_contract(make_contract(name="listed", version="1.1.0"))
+        assert [(c["name"], c["version"]) for c in akad_registry_client.list_contracts()] == [("listed", "1.1.0")]
+
+
 class TestFailureTolerance:
     """Registry being down must never break a pipeline run."""
 

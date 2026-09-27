@@ -72,6 +72,23 @@ class RegistryClient:
         resp.raise_for_status()
         return DataContract.model_validate(resp.json()["content"])
 
+    def list_contracts(self) -> list[dict[str, Any]]:
+        """Summaries (name, version, published_at, ...) of every contract's current version."""
+        resp = self._get("/contracts/", timeout=10)
+        resp.raise_for_status()
+        contracts: list[dict[str, Any]] = resp.json()
+        return contracts
+
+    def list_validation_results(self, contract_name: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        """Most recent validation results first, optionally for one contract."""
+        params: dict[str, Any] = {"limit": limit}
+        if contract_name is not None:
+            params["contract_name"] = contract_name
+        resp = self._get("/validation-results/", params=params, timeout=10)
+        resp.raise_for_status()
+        results: list[dict[str, Any]] = resp.json()
+        return results
+
     def publish_contract(self, contract: DataContract) -> bool:
         """Register a contract version. Returns True if it was created, False if
         this exact version and content was already published (a no-op).

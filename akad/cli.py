@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import json
 import sys
+import warnings
+from collections.abc import Iterable
 from pathlib import Path
 
+import httpx
 import typer
 
 from akad.contract_loader import load_contract
-from akad.models.contract import DataContract
+from akad.models.contract import DataContract, UnknownContractKeyWarning
 from akad.models.result import OverallStatus, ValidationResult
-from akad.registry_client import TOKEN_ENV, RegistryClient, auth_headers
+from akad.registry_client import TOKEN_ENV, RegistryClient
 
 # Force UTF-8 output so the ✓/✗ icons below don't crash on a non-UTF-8
 # console (e.g. the cp1252 default on many Windows setups) — without this,
@@ -19,6 +22,20 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")
 
 app = typer.Typer(name="akad", help="Akad — Data Contract Framework CLI", no_args_is_help=True)
+
+
+def _load_contract_with_warnings(path: Path) -> tuple[DataContract, list[str]]:
+    """Load a contract, collecting UnknownContractKeyWarnings instead of letting
+    Python print them with a pydantic stack location."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", UnknownContractKeyWarning)
+        contract = load_contract(path)
+    return contract, [str(w.message) for w in caught if issubclass(w.category, UnknownContractKeyWarning)]
+
+
+def _echo_unknown_key_warnings(messages: Iterable[str]) -> None:
+    for message in messages:
+        typer.echo(f"Warning: {message}", err=True)
 
 
 @app.command()
@@ -35,12 +52,15 @@ def validate(
     from akad.sdk import DataContractError, DataContractValidator
 
     try:
-        validator = DataContractValidator(
-            contract_path=contract,
-            registry_url=registry_url,
-            registry_token=token,
-            notifiers=[],  # CLI never sends notifications
-        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", UnknownContractKeyWarning)
+            validator = DataContractValidator(
+                contract_path=contract,
+                registry_url=registry_url,
+                registry_token=token,
+                notifiers=[],  # CLI never sends notifications
+            )
+        _echo_unknown_key_warnings(str(w.message) for w in caught)
         result = validator.validate()
     except DataContractError as exc:
         result = exc.result  # on_breach: fail — exit code below still reflects the status
@@ -63,9 +83,8 @@ def publish(
 ) -> None:
     """Publish a contract to the registry. Exits 1 if the registry can't be
     reached or rejects the contract."""
-    import httpx
-
-    c = load_contract(contract)
+    c, unknown_keys = _load_contract_with_warnings(contract)
+    _echo_unknown_key_warnings(unknown_keys)
     try:
         created = RegistryClient(registry_url, api_token=token).publish_contract(c)
     except Exception as exc:
@@ -83,14 +102,20 @@ def publish(
 @app.command()
 def check(
     contract: Path = typer.Option(..., "--contract", "-c", help="Path to contract YAML"),
+    strict:   bool = typer.Option(False, "--strict", help="Fail on unknown keys (usually typos) instead of warning"),
 ) -> None:
     """Validate contract YAML syntax without accessing data."""
     try:
-        c = load_contract(contract)
-        typer.echo(f"OK  {c.metadata.name} v{c.metadata.version} — contract is valid")
+        c, unknown_keys = _load_contract_with_warnings(contract)
     except Exception as exc:
         typer.echo(f"FAIL  {exc}", err=True)
         raise typer.Exit(code=1) from exc
+    for message in unknown_keys:
+        typer.echo(f"WARN  {message}", err=True)
+    if unknown_keys and strict:
+        typer.echo("FAIL  unknown keys found (--strict)", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"OK  {c.metadata.name} v{c.metadata.version} — contract is valid")
 
 
 @app.command(name="list")
@@ -99,14 +124,13 @@ def list_contracts(
     token:        str | None = typer.Option(None, "--token", envvar=TOKEN_ENV, help=f"Registry API token (default: ${TOKEN_ENV})"),
 ) -> None:
     """List all contracts in the registry."""
-    import httpx
     try:
-        data = httpx.get(f"{registry_url.rstrip('/')}/contracts/", headers=auth_headers(token), timeout=10).json()
-        for c in data:
-            typer.echo(f"  {c['name']:40s}  v{c['version']}")
+        contracts = RegistryClient(registry_url, api_token=token).list_contracts()
     except Exception as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
+    for c in contracts:
+        typer.echo(f"  {c['name']:40s}  v{c['version']}")
 
 
 @app.command()
@@ -185,27 +209,23 @@ def _load_diff_contracts(
     token: str | None = None,
 ) -> tuple[DataContract, DataContract]:
     """Resolve `akad diff`'s two loading modes into a pair of contracts."""
-    if name:
-        if not (old_version and new_version and registry_url):
-            typer.echo("Error: --name requires --old-version, --new-version, and --registry-url", err=True)
-            raise typer.Exit(code=2)
-    elif not (old_contract and new_contract):
-        typer.echo(
-            "Error: provide --old/--new file paths, or --name with "
-            "--old-version/--new-version/--registry-url",
-            err=True,
-        )
-        raise typer.Exit(code=2)
-
     try:
         if name:
             if not (old_version and new_version and registry_url):
-                raise AssertionError("unreachable — checked above")
+                typer.echo("Error: --name requires --old-version, --new-version, and --registry-url", err=True)
+                raise typer.Exit(code=2)
             client = RegistryClient(registry_url, api_token=token)
             return client.get_contract_version(name, old_version), client.get_contract_version(name, new_version)
         if not (old_contract and new_contract):
-            raise AssertionError("unreachable — checked above")
+            typer.echo(
+                "Error: provide --old/--new file paths, or --name with "
+                "--old-version/--new-version/--registry-url",
+                err=True,
+            )
+            raise typer.Exit(code=2)
         return load_contract(old_contract), load_contract(new_contract)
+    except typer.Exit:
+        raise
     except Exception as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -260,16 +280,14 @@ def history(
     token:        str | None = typer.Option(None, "--token", envvar=TOKEN_ENV, help=f"Registry API token (default: ${TOKEN_ENV})"),
 ) -> None:
     """Show breach history for a contract."""
-    import httpx
     try:
-        url  = f"{registry_url.rstrip('/')}/validation-results/?contract_name={name}&limit={limit}"
-        data = httpx.get(url, headers=auth_headers(token), timeout=10).json()
-        for r in data:
-            icon = "✓" if r["overall_status"] == "COMPLIANT" else "✗"
-            typer.echo(f"  {icon} {r['validated_at']}  {r['overall_status']}")
+        runs = RegistryClient(registry_url, api_token=token).list_validation_results(name, limit=limit)
     except Exception as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
+    for r in runs:
+        icon = "✓" if r["overall_status"] == "COMPLIANT" else "✗"
+        typer.echo(f"  {icon} {r['validated_at']}  {r['overall_status']}")
 
 
 def _print_result(result: ValidationResult, output: str) -> None:

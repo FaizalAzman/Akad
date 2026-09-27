@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # MAJOR.MINOR.PATCH with optional pre-release and build metadata (semver.org).
 SEMVER_PATTERN = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$"
@@ -25,10 +26,17 @@ class ContractSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+def _parse_json_column(value: Any) -> Any:
+    """The registry stores JSON documents in Text columns; parse them on the way out."""
+    return json.loads(value) if isinstance(value, str) else value
+
+
 class ContractDetail(ContractSummary):
     content: dict[str, Any]
 
     model_config = {"from_attributes": True}
+
+    _parse_content = field_validator("content", mode="before")(_parse_json_column)
 
 
 class ClauseResultSchema(BaseModel):
@@ -68,3 +76,5 @@ class ValidationResultDetail(ValidationResultSummary):
     clause_results: list[ClauseResultSchema]
 
     model_config = {"from_attributes": True}
+
+    _parse_clause_results = field_validator("clause_results", mode="before")(_parse_json_column)

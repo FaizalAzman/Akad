@@ -224,6 +224,28 @@ class TestContractToYamlDict:
         assert "connection_string" not in d["dataset"]
 
 
+    def test_round_trips_every_section(self):
+        """Used to hand-copy a subset of fields and silently drop the rest."""
+        from tests.conftest import make_contract
+
+        contract = make_contract(
+            freshness={"max_age_hours": 24, "check_column": "ts"},
+            notifications={"webhook": {"url": "https://example.com/hook"}},
+            consumers=[{"team": "Risk", "email": "risk@example.com"}],
+            business_rules=[{"name": "r", "expression": "a >= 0", "description": "non-negative"}],
+            schema_columns=[{"name": "a", "type": "decimal", "description": "amount"}],
+        )
+        reloaded = DataContract.model_validate(yaml.safe_load(yaml.dump(contract_to_yaml_dict(contract))))
+        assert reloaded == contract
+
+    def test_keeps_on_breach_even_when_default(self):
+        d = contract_to_yaml_dict(generate_contract(
+            _wide_df(), name="o", dataset_format="parquet", owner_team="t", owner_email="e",
+        ))
+        assert d["on_breach"] == "warn"
+        assert list(d)[:2] == ["apiVersion", "kind"]
+
+
 class TestSelfConsistency:
     """The whole point of `akad infer`: validating the same data against
     its own inferred contract must come back COMPLIANT."""

@@ -1,5 +1,8 @@
 # Contract YAML Reference
 
+!!! warning "Unknown keys are ignored, with a warning"
+    A key Akad doesn't recognise, usually a typo such as `freshnes:` or `max_null_percentag:`, is ignored, so the rule it was meant to declare is **not enforced**. Akad warns whenever a contract with unknown keys is loaded, and `akad check --strict` fails on them. Run it in CI. Unknown keys will become an error in the next major version.
+
 ```yaml
 apiVersion: datacontract/v1
 kind: DataContract

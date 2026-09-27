@@ -19,7 +19,6 @@ def _get_or_404(db: Session, *filters: Any, detail: str) -> ContractRecord:
     record = db.query(ContractRecord).filter(*filters).first()
     if not record:
         raise HTTPException(status_code=404, detail=detail)
-    record.content = json.loads(record.content)  # type: ignore[assignment]
     return record
 
 

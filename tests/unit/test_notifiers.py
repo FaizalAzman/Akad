@@ -29,6 +29,13 @@ def _breach_result():
     )
 
 
+def _error_result():
+    result = make_validation_result(status=OverallStatus.ERROR)
+    result.row_count = None
+    result.error_message = "Failed to read dataset: file not found"
+    return result
+
+
 WEBHOOK_CFG = {"webhook": {"url": "https://hooks.example.com/akad",
                            "headers": {"X-Token": "abc"}}}
 EMAIL_CFG = {"email": {"smtp_host": "smtp.example.com",
@@ -81,6 +88,40 @@ class TestWebhookNotifier:
              patch("akad.notifiers.webhook_notifier.httpx.post", return_value=bad_resp):
             WebhookNotifier().notify(contract, _breach_result())
         assert "Webhook notification failed" in caplog.text
+
+
+class TestErrorNotifications:
+    """An ERROR (contract couldn't be evaluated) must not be reported as a BREACH."""
+
+    def test_webhook_labels_error_and_includes_reason(self):
+        contract = make_contract(notifications=WEBHOOK_CFG)
+        with patch("akad.notifiers.webhook_notifier.httpx.post") as post:
+            WebhookNotifier().notify(contract, _error_result())
+
+        payload = post.call_args.kwargs["json"]
+        assert payload["event"] == "DATA_CONTRACT_ERROR"
+        assert payload["overall_status"] == "ERROR"
+        assert payload["error_message"] == "Failed to read dataset: file not found"
+        assert payload["failed_clauses"] == []
+
+    def test_webhook_breach_clauses_carry_status(self):
+        contract = make_contract(notifications=WEBHOOK_CFG)
+        with patch("akad.notifiers.webhook_notifier.httpx.post") as post:
+            WebhookNotifier().notify(contract, _breach_result())
+        assert post.call_args.kwargs["json"]["failed_clauses"][0]["status"] == "FAIL"
+
+    def test_email_subject_and_body_say_error(self, monkeypatch):
+        monkeypatch.setenv("SMTP_PW", "secret")
+        contract = make_contract(notifications=EMAIL_CFG)
+        with patch("akad.notifiers.email_notifier.smtplib.SMTP") as smtp_cls:
+            EmailNotifier().notify(contract, _error_result())
+
+        raw_message = smtp_cls.return_value.__enter__.return_value.sendmail.call_args[0][2]
+        msg = message_from_string(raw_message)
+        body = msg.get_payload(decode=True).decode("utf-8")
+        assert msg["Subject"] == "[Akad ERROR] test_contract v1.0.0"
+        assert "Failed to read dataset: file not found" in body
+        assert "Failed Clauses" not in body
 
 
 class TestCollectRecipients:

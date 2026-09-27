@@ -16,6 +16,8 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from akad.registry_client import auth_headers
+
 REGISTRY_URL = os.environ.get("REGISTRY_URL", "http://localhost:8000")
 
 app = FastAPI(title="Akad Dashboard")
@@ -23,10 +25,8 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
 async def _get(path: str) -> list | dict:
-    # Only needed when the registry requires auth for reads.
-    token = os.environ.get("AKAD_API_TOKEN")
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
-    async with httpx.AsyncClient(base_url=REGISTRY_URL, headers=headers, timeout=5) as client:
+    # $AKAD_API_TOKEN is only needed when the registry requires auth for reads.
+    async with httpx.AsyncClient(base_url=REGISTRY_URL, headers=auth_headers(None), timeout=5) as client:
         resp = await client.get(path)
         resp.raise_for_status()
         return resp.json()

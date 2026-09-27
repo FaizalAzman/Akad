@@ -212,3 +212,17 @@ class TestValidationResults:
         resp = registry_client.get("/validation-results/?limit=2")
         assert resp.status_code == 200
         assert len(resp.json()) == 2
+
+
+class TestDetailSchemas:
+    """Stored JSON is parsed by the response schema; the ORM row is left untouched."""
+
+    def test_contract_detail_parses_json_text(self):
+        from types import SimpleNamespace
+
+        from registry.schemas import ContractDetail
+
+        row = SimpleNamespace(id=1, name="c", version="1.0.0", published_at=datetime.now(UTC),
+                              is_current=True, content='{"kind": "DataContract"}')
+        assert ContractDetail.model_validate(row).content == {"kind": "DataContract"}
+        assert row.content == '{"kind": "DataContract"}'  # not mutated
