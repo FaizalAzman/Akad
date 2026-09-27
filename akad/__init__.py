@@ -4,7 +4,17 @@ Public API::
 
     from akad import DataContractValidator, DataContractBreachError
 """
-from akad.sdk import DataContractBreachError, DataContractValidator
+from akad.sdk import (
+    DataContractBreachError,
+    DataContractError,
+    DataContractEvaluationError,
+    DataContractValidator,
+)
 
-__all__ = ["DataContractBreachError", "DataContractValidator"]
+__all__ = [
+    "DataContractBreachError",
+    "DataContractError",
+    "DataContractEvaluationError",
+    "DataContractValidator",
+]
 __version__ = "1.3.0"

@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import pytest
 
-from akad import DataContractBreachError, DataContractValidator
+from akad import (
+    DataContractBreachError,
+    DataContractError,
+    DataContractEvaluationError,
+    DataContractValidator,
+)
 from akad.models.result import OverallStatus
 from tests.conftest import make_contract
 
@@ -119,6 +124,38 @@ class TestErrorStatus:
 
         assert result.overall_status == OverallStatus.ERROR
         assert len(recording_notifier.calls) == 1
+
+    def test_warn_mode_returns_error_result_without_raising(self, tmp_path):
+        contract = make_contract(location=str(tmp_path / "missing.parquet"), on_breach="warn")
+        result = _validator(contract, notifiers=[]).validate()
+        assert result.overall_status == OverallStatus.ERROR
+
+    def test_fail_mode_unreadable_dataset_raises(self, tmp_path):
+        """A fail-mode gate that can't read the data must not let the pipeline through."""
+        contract = make_contract(location=str(tmp_path / "missing.parquet"), on_breach="fail")
+        with pytest.raises(DataContractEvaluationError) as exc_info:
+            _validator(contract, notifiers=[]).validate()
+
+        assert isinstance(exc_info.value, DataContractError)
+        assert not isinstance(exc_info.value, DataContractBreachError)
+        assert exc_info.value.result.overall_status == OverallStatus.ERROR
+        assert "Failed to read dataset" in str(exc_info.value)
+
+    def test_fail_mode_errored_clause_raises(self, tmp_parquet):
+        contract = make_contract(location=str(tmp_parquet), on_breach="fail",
+                                 business_rules=[{"name": "bad", "expression": "no_such_column > 0"}])
+        with pytest.raises(DataContractEvaluationError, match=r"1 clause\(s\) errored"):
+            _validator(contract, notifiers=[]).validate()
+
+    def test_fail_mode_error_notifies_and_posts_before_raising(self, tmp_path, recording_notifier):
+        contract = make_contract(location=str(tmp_path / "missing.parquet"), on_breach="fail")
+        validator = _validator(contract, notifiers=[recording_notifier])
+
+        with pytest.raises(DataContractEvaluationError):
+            validator.validate()
+
+        assert len(recording_notifier.calls) == 1
+        assert len(validator.registry.posted) == 1
 
 
 class TestRegistryResolution:

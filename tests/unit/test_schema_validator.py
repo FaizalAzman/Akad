@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
+
 import pandas as pd
+import pyarrow as pa
+import pytest
 
 from akad.models.result import ClauseStatus
 from akad.validators.schema_validator import SchemaValidator
@@ -136,3 +141,41 @@ class TestNoExtraColumns:
         extra = [r for r in results if r.clause_type == "schema.no_extra_columns"]
         assert extra[0].status == ClauseStatus.FAIL
         assert "c" in str(extra[0].observed)
+
+
+def _type_status(series: pd.Series, declared: str) -> ClauseStatus:
+    df = pd.DataFrame({"col": series})
+    contract = make_contract(schema_columns=[{"name": "col", "type": declared}])
+    results = SchemaValidator().validate(df, contract, None)
+    return next(r.status for r in results if r.clause_type == "schema.column_type")
+
+
+class TestParquetDecimalAndDateTypes:
+    """pyarrow's to_pandas() turns decimal128 and date32 into object columns
+    of Decimal / date values — these must still match decimal / date."""
+
+    def test_decimal_objects_match_decimal(self):
+        s = pd.Series([Decimal("10.50"), None, Decimal("3.00")], dtype=object)
+        assert _type_status(s, "decimal") == ClauseStatus.PASS
+
+    def test_date_objects_match_date(self):
+        s = pd.Series([date(2026, 1, 1), None], dtype=object)
+        assert _type_status(s, "date") == ClauseStatus.PASS
+
+    def test_arrow_backed_decimal_matches_decimal(self):
+        dtype = pd.ArrowDtype(pa.decimal128(10, 2))
+        s = pd.Series(pa.array([Decimal("1.10"), None], pa.decimal128(10, 2)), dtype=dtype)
+        assert _type_status(s, "decimal") == ClauseStatus.PASS
+
+    def test_float_still_matches_decimal(self):
+        assert _type_status(pd.Series([1.5, 2.25]), "decimal") == ClauseStatus.PASS
+
+    @pytest.mark.parametrize(("values", "declared"), [
+        (["10.50", "3.00"], "decimal"),                 # numeric-looking strings
+        ([date(2026, 1, 1)], "decimal"),                # dates aren't decimals
+        (["2026-01-01"], "date"),                       # date-looking strings
+        ([Decimal("1.0")], "date"),                     # decimals aren't dates
+        ([Decimal("1.0"), "oops"], "decimal"),          # one stray value fails the column
+    ])
+    def test_other_object_values_do_not_match(self, values, declared):
+        assert _type_status(pd.Series(values, dtype=object), declared) == ClauseStatus.FAIL

@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/), versioning follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **Validation fails closed.** When the contract couldn't be evaluated (unreadable dataset, erroring rule) the result is `ERROR`. Previously that passed silently: `akad validate` exited `0` and the SDK returned normally even under `on_breach: fail`. Now `on_breach: fail` raises the new `DataContractEvaluationError`, and `akad validate` exits `2` in either mode and prints the reason. `--output json` gains `error_message` and `errored_clauses`.
+- **`decimal` and `date` columns from Parquet now pass their type checks.** pyarrow reads `decimal128` and `date32` into pandas as object columns of `Decimal` / `date` values, which always failed. Arrow-backed decimal columns (`pd.ArrowDtype`) are accepted too, and `akad infer` now infers `decimal` and `date` for these columns instead of `string`.
+- **`akad publish` no longer reports success when publishing failed.** `RegistryClient.publish_contract` raises on connection errors and non-2xx responses instead of logging a warning, and the CLI exits `1` with the registry's response. `post_validation_result` still only warns, so a registry outage never breaks a pipeline run.
+
+### Added
+- `DataContractError` base class (exported from `akad`), with `DataContractBreachError` and `DataContractEvaluationError` as subclasses. Existing `except DataContractBreachError` handlers keep working.
+- `ValidationResult.errored_clauses`.
+
 ## [1.3.0] - 2026-06-24
 
 ### Added

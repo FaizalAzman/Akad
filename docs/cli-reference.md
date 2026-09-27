@@ -16,7 +16,7 @@ akad history   --name NAME      --registry-url URL     [--limit N]
 | `akad diff` | Compare two contract versions; flag breaking vs non-breaking changes | Yes — fail the build on a breaking contract change |
 | `akad check` | Parse and validate contract YAML syntax without touching data | Yes — catches typos before they hit a pipeline |
 | `akad publish` | Register a contract version with the registry | — |
-| `akad validate` | Run full validation against the dataset; exits `1` on breach | Yes — fail the build on a breach |
+| `akad validate` | Run full validation against the dataset; exits `0` compliant, `1` breach, `2` could not be evaluated (unreadable dataset, erroring rule, bad contract) | Yes — fail the build on a breach or error |
 | `akad list` | List all current contracts in the registry | — |
 | `akad history` | Show recent validation runs for a contract | — |
 

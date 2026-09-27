@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
+import httpx
 import yaml
 from typer.testing import CliRunner
 
@@ -91,6 +92,31 @@ class TestValidate:
         assert payload["row_count"] == 10
         assert payload["failed_clauses"][0]["clause_type"] == "volume.min_rows"
 
+    def test_unreadable_dataset_warn_mode_exits_two(self, tmp_path):
+        path = _write_contract_yaml(tmp_path, (tmp_path / "missing.parquet").as_posix())
+        result = runner.invoke(app, ["validate", "--contract", str(path)])
+        assert result.exit_code == 2
+        assert "ERROR" in result.output
+        assert "Failed to read dataset" in result.output
+
+    def test_unreadable_dataset_fail_mode_exits_two(self, tmp_path):
+        path = _write_contract_yaml(tmp_path, (tmp_path / "missing.parquet").as_posix(),
+                                    on_breach="fail")
+        result = runner.invoke(app, ["validate", "--contract", str(path)])
+        assert result.exit_code == 2
+        assert "Failed to read dataset" in result.output
+
+    def test_error_json_output_includes_error_message(self, tmp_path):
+        path = _write_contract_yaml(tmp_path, (tmp_path / "missing.parquet").as_posix())
+        result = runner.invoke(
+            app, ["validate", "--contract", str(path), "--output", "json"]
+        )
+        payload = json.loads(result.output)
+        assert result.exit_code == 2
+        assert payload["status"] == "ERROR"
+        assert "Failed to read dataset" in payload["error_message"]
+        assert payload["errored_clauses"] == []
+
     def test_unloadable_contract_exits_two(self, tmp_path):
         result = runner.invoke(
             app, ["validate", "--contract", str(tmp_path / "missing.yaml")]
@@ -111,6 +137,34 @@ class TestPublish:
         assert "Published cli_sales v1.0.0" in result.output
         client_cls.assert_called_once_with("http://localhost:8000")
         client_cls.return_value.publish_contract.assert_called_once()
+
+    def test_registry_rejection_exits_one_with_detail(self, tmp_path):
+        path = _write_contract_yaml(tmp_path, "/tmp/x.parquet")
+        request = httpx.Request("POST", "http://localhost:8000/contracts/")
+        rejection = httpx.HTTPStatusError(
+            "conflict", request=request,
+            response=httpx.Response(409, text='{"detail":"version exists"}', request=request),
+        )
+        with patch("akad.cli.RegistryClient") as client_cls:
+            client_cls.return_value.publish_contract.side_effect = rejection
+            result = runner.invoke(app, [
+                "publish", "--contract", str(path),
+                "--registry-url", "http://localhost:8000",
+            ])
+
+        assert result.exit_code == 1
+        assert "409" in result.output
+        assert "version exists" in result.output
+        assert "Published" not in result.output
+
+    def test_unreachable_registry_exits_one(self, tmp_path):
+        path = _write_contract_yaml(tmp_path, "/tmp/x.parquet")
+        result = runner.invoke(app, [
+            "publish", "--contract", str(path), "--registry-url", "http://127.0.0.1:9",
+        ])
+        assert result.exit_code == 1
+        assert "could not publish cli_sales v1.0.0" in result.output
+        assert "Published" not in result.output
 
 
 class TestList:

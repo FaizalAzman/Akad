@@ -5,12 +5,17 @@ and test_engine_with_parquet uses tmp_parquet fixture for the full read path.
 """
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from akad.engine import validate, validate_dataframe
 from akad.models.result import OverallStatus
+from akad.profiler import generate_contract
 from tests.conftest import make_contract, make_transactions_df
 
 
@@ -96,6 +101,42 @@ class TestValidateWithParquetFile:
         result = validate(contract)
         assert result.overall_status == OverallStatus.COMPLIANT
         assert result.row_count == 10
+
+    def test_decimal_and_date_columns_from_real_parquet(self, tmp_path: Path):
+        """Regression: decimal128/date32 read back as object columns and used
+        to fail every decimal/date type check."""
+        path = tmp_path / "financing.parquet"
+        pq.write_table(pa.table({
+            "outstanding": pa.array([Decimal("1500.00"), Decimal("250.75"), None], pa.decimal128(18, 2)),
+            "as_of_date":  pa.array([date(2026, 9, 1), date(2026, 9, 2), date(2026, 9, 3)], pa.date32()),
+            "booked_at":   pa.array([1, 2, 3], pa.timestamp("us")),
+        }), path)
+        contract = make_contract(
+            location=str(path),
+            schema_columns=[
+                {"name": "outstanding", "type": "decimal"},
+                {"name": "as_of_date",  "type": "date", "nullable": False},
+                {"name": "booked_at",   "type": "timestamp"},
+            ],
+            quality=[{"column": "outstanding", "min_value": 0}],
+        )
+        result = validate(contract)
+        assert result.overall_status == OverallStatus.COMPLIANT, result.failed_clauses
+
+    def test_inferred_contract_validates_its_own_parquet(self, tmp_path: Path):
+        """`akad infer` output must be compliant against the data it was inferred from."""
+        path = tmp_path / "financing.parquet"
+        table = pa.table({
+            "account_id":  pa.array([f"ACC{i}" for i in range(6)]),
+            "outstanding": pa.array([Decimal(f"{i}.50") for i in range(6)], pa.decimal128(18, 2)),
+            "as_of_date":  pa.array([date(2026, 9, i + 1) for i in range(6)], pa.date32()),
+        })
+        pq.write_table(table, path)
+        contract = generate_contract(table.to_pandas(), name="financing", dataset_format="parquet",
+                                     owner_team="t", owner_email="t@example.com", location=str(path))
+        types = {c.name: c.type.value for c in contract.schema_.columns}
+        assert types == {"account_id": "string", "outstanding": "decimal", "as_of_date": "date"}
+        assert validate(contract).overall_status == OverallStatus.COMPLIANT
 
     def test_validate_returns_error_on_bad_path(self):
         contract = make_contract(location="/nonexistent/path/data.parquet")

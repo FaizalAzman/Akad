@@ -65,7 +65,10 @@ class DataContractValidator:
         """Run validation.
 
         - ``on_breach='warn'``: logs, notifies, returns result.
-        - ``on_breach='fail'``: logs, notifies, raises :exc:`DataContractBreachError`.
+        - ``on_breach='fail'``: logs, notifies, raises :exc:`DataContractBreachError`
+          on a breach, or :exc:`DataContractEvaluationError` if the contract
+          couldn't be evaluated at all (unreadable dataset, erroring rule) —
+          a gate that can't see the data must not let the pipeline through.
         """
         result = eng.validate(self.contract, self.extra_validators)
 
@@ -75,17 +78,35 @@ class DataContractValidator:
         if self.registry:
             self.registry.post_validation_result(result)
 
-        if result.is_breach and self.contract.on_breach == "fail":
-            raise DataContractBreachError(
-                f'Contract "{self.contract.metadata.name}" breached. '
-                f"{len(result.failed_clauses)} clause(s) failed.",
-                result=result,
-            )
+        if self.contract.on_breach == "fail":
+            name = self.contract.metadata.name
+            if result.is_breach:
+                raise DataContractBreachError(
+                    f'Contract "{name}" breached. {len(result.failed_clauses)} clause(s) failed.',
+                    result=result,
+                )
+            if result.overall_status == OverallStatus.ERROR:
+                reason = result.error_message or f"{len(result.errored_clauses)} clause(s) errored"
+                raise DataContractEvaluationError(
+                    f'Contract "{name}" could not be evaluated: {reason}',
+                    result=result,
+                )
 
         return result
 
 
-class DataContractBreachError(Exception):
+class DataContractError(Exception):
+    """Base for errors raised by :meth:`DataContractValidator.validate` under
+    ``on_breach='fail'``. Carries the full :class:`ValidationResult`."""
+
     def __init__(self, message: str, result: ValidationResult):
         super().__init__(message)
         self.result = result
+
+
+class DataContractBreachError(DataContractError):
+    """The dataset was evaluated and violated the contract."""
+
+
+class DataContractEvaluationError(DataContractError):
+    """The contract could not be evaluated — e.g. the dataset was unreadable."""

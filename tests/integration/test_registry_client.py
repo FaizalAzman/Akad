@@ -63,11 +63,16 @@ class TestFailureTolerance:
             client.post_validation_result(make_validation_result())  # must not raise
         assert "Failed to post result" in caplog.text
 
-    def test_publish_contract_swallows_connection_error(self, caplog):
-        client = RegistryClient(DEAD_URL)
-        with caplog.at_level(logging.WARNING):
-            client.publish_contract(make_contract())  # must not raise
-        assert "Failed to publish contract" in caplog.text
+    def test_publish_contract_propagates_connection_error(self):
+        # A publish that silently didn't happen is worse than a loud failure
+        with pytest.raises(httpx.HTTPError):
+            RegistryClient(DEAD_URL).publish_contract(make_contract())
+
+    def test_publish_contract_propagates_registry_rejection(self):
+        transport = httpx.MockTransport(lambda _request: httpx.Response(500, text="boom"))
+        client = RegistryClient("http://registry", _http_client=httpx.Client(transport=transport))
+        with pytest.raises(httpx.HTTPStatusError):
+            client.publish_contract(make_contract())
 
     def test_get_contract_propagates_connection_error(self):
         # Fetching the contract is load-bearing — this one MUST raise

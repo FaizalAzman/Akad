@@ -80,6 +80,10 @@ class ValidationResult:
     def failed_clauses(self) -> list[ClauseResult]:
         return [c for c in self.clause_results if c.status == ClauseStatus.FAIL]
 
+    @property
+    def errored_clauses(self) -> list[ClauseResult]:
+        return [c for c in self.clause_results if c.status == ClauseStatus.ERROR]
+
     def to_dict(self) -> dict:
         """JSON-safe dict matching the registry's ValidationResultRequest payload."""
         return {

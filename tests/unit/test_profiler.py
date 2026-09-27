@@ -8,6 +8,9 @@ guard to be correctly excluded.
 """
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
+
 import pandas as pd
 import pytest
 import yaml
@@ -61,6 +64,18 @@ class TestInferColumnType:
 
     def test_object_dtype_is_string(self):
         assert _infer_column_type(pd.Series(["a", "b"])) == ColumnType.STRING
+
+    def test_decimal_objects_are_decimal(self):
+        s = pd.Series([Decimal("1.10"), None], dtype=object)
+        assert _infer_column_type(s) == ColumnType.DECIMAL
+
+    def test_date_objects_are_date(self):
+        s = pd.Series([date(2026, 1, 1), None], dtype=object)
+        assert _infer_column_type(s) == ColumnType.DATE
+
+    def test_all_null_object_column_is_string(self):
+        s = pd.Series([None, None], dtype=object)
+        assert _infer_column_type(s) == ColumnType.STRING
 
 
 class TestAllowedValuesInference:
