@@ -7,11 +7,14 @@ to follow. Review and tighten before relying on it in CI or production.
 """
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import pandas as pd
 
 from akad.models.contract import ColumnType, DataContract
+from akad.validators.schema_validator import object_values_are
 
 DEFAULT_MAX_ALLOWED_VALUES_CARDINALITY = 20
 
@@ -30,6 +33,13 @@ def _infer_column_type(s: pd.Series) -> ColumnType:
         return ColumnType.FLOAT
     if pd.api.types.is_datetime64_any_dtype(s):
         return ColumnType.TIMESTAMP
+    # Parquet decimal128/date32 arrive as object columns of Decimal/date values.
+    # Require at least one value so an all-null object column stays a string.
+    if not s.dropna().empty:
+        if object_values_are(s, Decimal):
+            return ColumnType.DECIMAL
+        if object_values_are(s, date):
+            return ColumnType.DATE
     return ColumnType.STRING
 
 

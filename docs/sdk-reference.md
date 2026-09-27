@@ -22,13 +22,35 @@ validator = DataContractValidator(
 result = validator.validate()
 ```
 
+### Exceptions (`on_breach: fail` only)
+
+| Exception | Raised when |
+|---|---|
+| `DataContractBreachError` | The dataset was evaluated and violated the contract (`BREACH`) |
+| `DataContractEvaluationError` | The contract couldn't be evaluated (`ERROR`): unreadable dataset, erroring rule or validator |
+| `DataContractError` | Base class of both; catch it to handle either. `exc.result` holds the full `ValidationResult` |
+
+```python
+from akad import DataContractError
+
+try:
+    validator.validate()
+except DataContractError as exc:
+    print(exc.result.overall_status, exc.result.error_message)
+    raise
+```
+
+Under `on_breach: warn` neither is raised; check `result.overall_status` yourself.
+
 ## `ValidationResult`
 
 ```python
 result.overall_status      # OverallStatus.COMPLIANT | BREACH | ERROR
 result.is_breach           # bool
 result.row_count           # int
-result.failed_clauses      # List[ClauseResult]
+result.failed_clauses      # List[ClauseResult] — status FAIL
+result.errored_clauses     # List[ClauseResult] — status ERROR (a rule that couldn't be evaluated)
+result.error_message       # str | None — set when the dataset couldn't be read
 
 for c in result.failed_clauses:
     print(c.clause_type)   # e.g. "schema.allowed_values"

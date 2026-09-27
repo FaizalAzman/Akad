@@ -158,9 +158,11 @@ Phases are sequential in priority, not strictly in time. Every phase ends with a
 ### Phase 0: Credibility (≈ 2–3 weeks) · *"Correct before clever"*
 Goal: nothing in the current product gives a wrong answer.
 
-- [ ] **B1**: Treat `ERROR` as a failure: SDK raises under `on_breach: fail`, CLI exits non-zero (a distinct code, e.g. `2`), plus an explicit `on_error: fail|warn` setting that defaults to `fail`.
-- [ ] **B2**: A type system that understands Arrow: check against the Arrow schema before converting to pandas. Distinguish `date` from `timestamp`, support `decimal(p,s)`, and handle timezones.
-- [ ] **B3**: `publish_contract` raises on failure. The CLI exits non-zero and prints the registry's error.
+- [x] **B1**: Treat `ERROR` as a failure: SDK raises `DataContractEvaluationError` under `on_breach: fail`, and `akad validate` exits `2`.
+- [ ] An explicit `on_error: fail|warn` setting, so `on_breach: warn` contracts can still fail closed when the data can't be evaluated.
+- [x] **B2** (immediate fix): `decimal` and `date` columns read from Parquet pass their type checks, and `akad infer` detects them.
+- [ ] A type system that understands Arrow: check against the Arrow schema before converting to pandas. Distinguish `date` from `timestamp`, support `decimal(p,s)`, and handle timezones.
+- [x] **B3**: `publish_contract` raises on failure. The CLI exits non-zero and prints the registry's error.
 - [ ] **B4**: Unique `(name, version)`, `409 Conflict` on republish, atomic "current" flip, semver validation.
 - [ ] **B5**: Token-based auth on registry writes (API keys), read-only by default for anonymous users.
 - [ ] Alembic migrations in place of `create_all`.

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from datetime import date
+from decimal import Decimal
+
 import pandas as pd
+import pyarrow as pa
 
 from akad.models.contract import ColumnType, DataContract
 from akad.models.result import ClauseResult, ClauseStatus
@@ -19,6 +23,26 @@ def _is_integer_like(s: pd.Series) -> bool:
     return False
 
 
+def object_values_are(s: pd.Series, types: type | tuple[type, ...]) -> bool:
+    """True for an object-dtype column whose every non-null value is an
+    instance of *types*. This is how pandas holds Parquet decimal128 and date32
+    columns after pyarrow's to_pandas(): as Python Decimal / date objects,
+    not a native dtype."""
+    if s.dtype != object:
+        return False
+    return all(isinstance(v, types) for v in s.dropna())
+
+
+def _is_decimal_like(s: pd.Series) -> bool:
+    if pd.api.types.is_float_dtype(s) or object_values_are(s, Decimal):
+        return True
+    return isinstance(s.dtype, pd.ArrowDtype) and pa.types.is_decimal(s.dtype.pyarrow_dtype)
+
+
+def _is_date_like(s: pd.Series) -> bool:
+    return pd.api.types.is_datetime64_any_dtype(s) or object_values_are(s, date)
+
+
 _TYPE_CHECKS = {
     # pandas 3.x uses StringDtype (str(dtype)=="str"); older uses object dtype
     ColumnType.STRING:    lambda s: (
@@ -29,9 +53,9 @@ _TYPE_CHECKS = {
     ColumnType.INTEGER:   _is_integer_like,
     ColumnType.FLOAT:     lambda s: pd.api.types.is_float_dtype(s),
     ColumnType.BOOLEAN:   lambda s: pd.api.types.is_bool_dtype(s),
-    ColumnType.DATE:      lambda s: pd.api.types.is_datetime64_any_dtype(s),
+    ColumnType.DATE:      _is_date_like,
     ColumnType.TIMESTAMP: lambda s: pd.api.types.is_datetime64_any_dtype(s),
-    ColumnType.DECIMAL:   lambda s: pd.api.types.is_float_dtype(s),
+    ColumnType.DECIMAL:   _is_decimal_like,
 }
 
 

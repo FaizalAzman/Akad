@@ -63,6 +63,8 @@ A rule fails if *any* row violates it; the failure message reports how many rows
 | `on_breach: warn` | Returns result with `is_breach=True`, pipeline continues |
 | `on_breach: fail` | Raises `DataContractBreachError`, pipeline halts |
 
+If the contract can't be evaluated at all (unreadable dataset, erroring rule) the result is `ERROR`. Under `on_breach: fail` that raises `DataContractEvaluationError`, so a gate that can't see the data never lets the pipeline through. Both exceptions subclass `DataContractError` and carry the full result as `.result`.
+
 ### Notifications
 
 - **Webhook** — POST JSON breach payload to any URL (Slack, Teams, PagerDuty)
@@ -84,7 +86,7 @@ FastAPI + Jinja2 + Tailwind (CDN, no build step) — overview of all contracts, 
 - `akad diff` — compare two contract versions, flag breaking vs non-breaking changes (CI-friendly)
 - `akad check` — parse and validate YAML syntax without touching data (CI-safe)
 - `akad publish` — register a contract version
-- `akad validate` — run full validation, exit 1 on breach (CI-friendly)
+- `akad validate` — run full validation; exit 1 on breach, 2 if it couldn't be evaluated (CI-friendly)
 - `akad list` — list all current contracts in registry
 - `akad history` — show recent validation runs for a contract
 

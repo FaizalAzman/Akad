@@ -52,15 +52,18 @@ class RegistryClient:
         return DataContract.model_validate(resp.json()["content"])
 
     def publish_contract(self, contract: DataContract) -> None:
+        """Register a contract version.
+
+        Raises httpx.HTTPError if the registry can't be reached or rejects the
+        contract — unlike post_validation_result, a publish that silently
+        didn't happen leaves consumers resolving a stale contract.
+        """
         payload = {
             "name":    contract.metadata.name,
             "version": contract.metadata.version,
             "content": contract.model_dump(by_alias=True),
         }
-        try:
-            self._post("/contracts/", json=payload, timeout=10).raise_for_status()
-        except Exception as exc:
-            log.warning("Failed to publish contract to registry: %s", exc)
+        self._post("/contracts/", json=payload, timeout=10).raise_for_status()
 
     def post_validation_result(self, result: ValidationResult) -> None:
         try:

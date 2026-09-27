@@ -67,5 +67,6 @@ Also not a deployed component — a pure, I/O-free comparison used by `akad diff
 ## Design decisions worth knowing
 
 - **`on_breach: warn` vs `on_breach: fail`** — warn records the breach and lets the pipeline continue (detection); fail raises `DataContractBreachError`, which in Airflow propagates into a failed task and skips downstream tasks (prevention). Both modes post the same `ValidationResult` to the registry.
+- **Fail closed** — an `ERROR` result (the dataset couldn't be read, or a rule couldn't be evaluated) is never treated as a pass: under `on_breach: fail` it raises `DataContractEvaluationError`, and `akad validate` exits `2` in either mode.
 - **Two contract-loading paths** — `contract_path` for dev/CI where the YAML lives next to the code, `contract_name` + `registry_url` for Airflow workers that shouldn't need a local copy of every contract they validate against.
 - **`validate_dataframe()`** — the engine's DataFrame-in entry point bypasses the reader layer entirely, so unit tests can exercise every validator without touching real storage.

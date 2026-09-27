@@ -8,7 +8,7 @@ import typer
 
 from akad.contract_loader import load_contract
 from akad.models.contract import DataContract
-from akad.models.result import ValidationResult
+from akad.models.result import OverallStatus, ValidationResult
 from akad.registry_client import RegistryClient
 
 # Force UTF-8 output so the ✓/✗ icons below don't crash on a non-UTF-8
@@ -27,8 +27,11 @@ def validate(
     registry_url: str | None = typer.Option(None, "--registry-url", "-r", help="Registry URL"),
     output:       str  = typer.Option("text", "--output", "-o", help="Output format: text|json"),
 ) -> None:
-    """Validate a dataset against its contract."""
-    from akad.sdk import DataContractBreachError, DataContractValidator
+    """Validate a dataset against its contract.
+
+    Exit codes: 0 compliant, 1 breach, 2 contract or dataset could not be evaluated.
+    """
+    from akad.sdk import DataContractError, DataContractValidator
 
     try:
         validator = DataContractValidator(
@@ -37,10 +40,8 @@ def validate(
             notifiers=[],  # CLI never sends notifications
         )
         result = validator.validate()
-    except DataContractBreachError as exc:
-        result = exc.result
-        _print_result(result, output)
-        raise typer.Exit(code=1) from exc
+    except DataContractError as exc:
+        result = exc.result  # on_breach: fail — exit code below still reflects the status
     except Exception as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -48,6 +49,8 @@ def validate(
     _print_result(result, output)
     if result.is_breach:
         raise typer.Exit(code=1)
+    if result.overall_status == OverallStatus.ERROR:
+        raise typer.Exit(code=2)
 
 
 @app.command()
@@ -55,10 +58,19 @@ def publish(
     contract:     Path = typer.Option(..., "--contract", "-c", help="Path to contract YAML"),
     registry_url: str  = typer.Option(..., "--registry-url", "-r", help="Registry URL"),
 ) -> None:
-    """Publish a contract to the registry."""
+    """Publish a contract to the registry. Exits 1 if the registry can't be
+    reached or rejects the contract."""
+    import httpx
+
     c = load_contract(contract)
-    client = RegistryClient(registry_url)
-    client.publish_contract(c)
+    try:
+        RegistryClient(registry_url).publish_contract(c)
+    except Exception as exc:
+        detail = str(exc)
+        if isinstance(exc, httpx.HTTPStatusError):
+            detail = f"registry returned {exc.response.status_code}: {exc.response.text}"
+        typer.echo(f"Error: could not publish {c.metadata.name} v{c.metadata.version} — {detail}", err=True)
+        raise typer.Exit(code=1) from exc
     typer.echo(f"Published {c.metadata.name} v{c.metadata.version}")
 
 
@@ -253,18 +265,24 @@ def history(
 def _print_result(result: ValidationResult, output: str) -> None:
     if output == "json":
         typer.echo(json.dumps({
-            "status":         result.overall_status.value,
-            "row_count":      result.row_count,
-            "failed_clauses": [c.to_dict() for c in result.failed_clauses],
+            "status":          result.overall_status.value,
+            "row_count":       result.row_count,
+            "error_message":   result.error_message,
+            "failed_clauses":  [c.to_dict() for c in result.failed_clauses],
+            "errored_clauses": [c.to_dict() for c in result.errored_clauses],
         }, indent=2))
     else:
         icon = "✓" if result.overall_status.value == "COMPLIANT" else "✗"
         typer.echo(f"{icon} {result.contract_name} v{result.contract_version}: {result.overall_status.value}")
-        if result.failed_clauses:
-            typer.echo("Failed clauses:")
-            for c in result.failed_clauses:
-                target = f" [{c.clause_target}]" if c.clause_target else ""
-                typer.echo(f"  - [{c.clause_type}]{target} {c.message}")
+        if result.error_message:
+            typer.echo(f"Error: {result.error_message}")
+        for heading, clauses in (("Failed clauses:", result.failed_clauses),
+                                 ("Errored clauses:", result.errored_clauses)):
+            if clauses:
+                typer.echo(heading)
+                for c in clauses:
+                    target = f" [{c.clause_target}]" if c.clause_target else ""
+                    typer.echo(f"  - [{c.clause_type}]{target} {c.message}")
 
 
 if __name__ == "__main__":
