@@ -296,7 +296,7 @@ The finish line is **engineering quality, not adoption**. A phase counts as done
 
 | Gate | Pass condition (quality) | Tracked (adoption, non-blocking) |
 |---|---|---|
-| Phase 0 | B1–B5 fixed with regression tests. v1.4 released. | n/a |
+| Phase 0 | B1–B5 fixed with regression tests and released. | n/a |
 | Phase 1 | ODCS round-trip passes. The Airflow integration has end-to-end tests. OpenLineage events are spec-valid. | Teams running Akad in an orchestrator, and PyPI downloads |
 | Phase 2 | Conformance suite green on every backend. 1B-row benchmark within memory and time budgets. | Backends actually used |
 | Phase 3 *(deferred)* | Breaking-change gate, consumer sign-off and audit log proven end to end. RBAC tested. | Contracts under governance |
@@ -328,7 +328,7 @@ The finish line is **engineering quality, not adoption**. A phase counts as done
 
 ## 8. Immediate next steps
 
-1. ~~Fix B1–B3~~ (done) and ship **v1.3.1**.
+1. ~~Fix B1–B3 and ship them~~ (done: **v1.4.0**).
 2. Fix B4 and B5: immutable registry versions, API tokens on writes, Alembic migrations. Phase 4's audit evidence depends on contract versions that can't change.
 3. Write a one-page mapping from `datacontract/v1` to ODCS v3 and decide how extension fields are handled.
 4. Build the OpenLineage emitter and an Airflow operator: the smallest change that makes Akad visible to the rest of the platform.

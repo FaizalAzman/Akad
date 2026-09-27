@@ -560,4 +560,4 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ---
 
-*akad-framework v1.3.0*
+*akad-framework v1.4.0*
