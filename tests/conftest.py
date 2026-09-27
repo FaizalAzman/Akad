@@ -173,18 +173,27 @@ def recording_notifier() -> RecordingNotifier:
 
 # ─── Registry client (per-test file-based SQLite) ────────────────────────────
 
+REGISTRY_TEST_TOKEN = "test-token"
+
+
 @pytest.fixture()
-def registry_client(tmp_path):
+def registry_client(tmp_path, monkeypatch):
     """FastAPI TestClient backed by a fresh SQLite database per test.
 
     Uses dependency_overrides so the API's get_db dependency uses the same
-    test engine — no module reload tricks needed.
+    test engine — no module reload tricks needed. The app's startup migrations
+    run against that engine too, so every API test exercises the real schema
+    migrations and never touches the default ./akad_registry.db. The registry
+    accepts REGISTRY_TEST_TOKEN, and the client sends it on every request.
     """
+    monkeypatch.setenv("AKAD_API_TOKENS", REGISTRY_TEST_TOKEN)
+    monkeypatch.delenv("AKAD_API_TOKEN", raising=False)
+    monkeypatch.delenv("AKAD_REGISTRY_READS_REQUIRE_AUTH", raising=False)
     from fastapi.testclient import TestClient
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
-    from registry.database import Base, get_db
+    from registry.database import get_db, run_migrations
     from registry.main import app
 
     db_file   = tmp_path / "test_registry.db"
@@ -193,7 +202,7 @@ def registry_client(tmp_path):
         connect_args={"check_same_thread": False},
     )
     TestSession = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)  # noqa: N806 — SQLAlchemy's own convention for a session factory
-    Base.metadata.create_all(bind=test_engine)
+    monkeypatch.setattr("registry.main.run_migrations", lambda: run_migrations(test_engine))
 
     def override_get_db():
         db = TestSession()
@@ -204,7 +213,7 @@ def registry_client(tmp_path):
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        with TestClient(app) as client:
+        with TestClient(app, headers={"Authorization": f"Bearer {REGISTRY_TEST_TOKEN}"}) as client:
             yield client
     finally:
         app.dependency_overrides.clear()

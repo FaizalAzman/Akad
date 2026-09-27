@@ -3,12 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# MAJOR.MINOR.PATCH with optional pre-release and build metadata (semver.org).
+SEMVER_PATTERN = r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$"
 
 
 class ContractPublishRequest(BaseModel):
     name:    str
-    version: str
+    version: str = Field(pattern=SEMVER_PATTERN)
     content: dict[str, Any]
 
 

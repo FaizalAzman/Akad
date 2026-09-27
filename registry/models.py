@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from registry.database import Base
@@ -14,6 +14,17 @@ def _now() -> datetime:
 
 class ContractRecord(Base):
     __tablename__ = "contracts"
+    __table_args__ = (
+        # A published version is immutable: one row per (name, version).
+        Index("uq_contracts_name_version", "name", "version", unique=True),
+        # At most one current version per contract, enforced by the database so
+        # two concurrent publishes can't both end up current. Partial indexes
+        # exist only on PostgreSQL and SQLite, the two supported backends.
+        Index(
+            "uq_contracts_one_current_per_name", "name", unique=True,
+            postgresql_where=text("is_current"), sqlite_where=text("is_current = 1"),
+        ).ddl_if(dialect=("postgresql", "sqlite")),
+    )
 
     id:           Mapped[int]      = mapped_column(Integer, primary_key=True, index=True)
     name:         Mapped[str]      = mapped_column(String(255), nullable=False, index=True)

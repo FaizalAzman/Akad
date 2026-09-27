@@ -16,6 +16,12 @@ docker compose up -d
 - Registry API: `http://localhost:8000`
 - Dashboard: `http://localhost:8501`
 
+Writes to the registry need an API token. The compose file sets a development token, `dev-token-change-me`, unless you set `AKAD_API_TOKENS` yourself:
+
+```bash
+export AKAD_API_TOKEN=dev-token-change-me   # picked up by the CLI and the SDK
+```
+
 ## Step 3 — Publish the contract
 
 ```bash

@@ -135,8 +135,18 @@ class TestPublish:
 
         assert result.exit_code == 0
         assert "Published cli_sales v1.0.0" in result.output
-        client_cls.assert_called_once_with("http://localhost:8000")
+        client_cls.assert_called_once_with("http://localhost:8000", api_token=None)
         client_cls.return_value.publish_contract.assert_called_once()
+
+    def test_identical_republish_says_nothing_changed(self, tmp_path):
+        path = _write_contract_yaml(tmp_path, "/tmp/x.parquet")
+        with patch("akad.cli.RegistryClient") as client_cls:
+            client_cls.return_value.publish_contract.return_value = False
+            result = runner.invoke(app, [
+                "publish", "--contract", str(path), "--registry-url", "http://localhost:8000",
+            ])
+        assert result.exit_code == 0
+        assert "Already published cli_sales v1.0.0" in result.output
 
     def test_registry_rejection_exits_one_with_detail(self, tmp_path):
         path = _write_contract_yaml(tmp_path, "/tmp/x.parquet")
@@ -323,7 +333,7 @@ class TestDiff:
 
         assert result.exit_code == 1
         assert "BREAKING" in result.output
-        client_cls.assert_called_once_with("http://localhost:8000")
+        client_cls.assert_called_once_with("http://localhost:8000", api_token=None)
         instance.get_contract_version.assert_any_call("cli_sales", "1.0.0")
         instance.get_contract_version.assert_any_call("cli_sales", "2.0.0")
 

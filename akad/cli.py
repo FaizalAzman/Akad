@@ -9,7 +9,7 @@ import typer
 from akad.contract_loader import load_contract
 from akad.models.contract import DataContract
 from akad.models.result import OverallStatus, ValidationResult
-from akad.registry_client import RegistryClient
+from akad.registry_client import TOKEN_ENV, RegistryClient, auth_headers
 
 # Force UTF-8 output so the ✓/✗ icons below don't crash on a non-UTF-8
 # console (e.g. the cp1252 default on many Windows setups) — without this,
@@ -26,6 +26,7 @@ def validate(
     contract:     Path = typer.Option(..., "--contract", "-c", help="Path to contract YAML"),
     registry_url: str | None = typer.Option(None, "--registry-url", "-r", help="Registry URL"),
     output:       str  = typer.Option("text", "--output", "-o", help="Output format: text|json"),
+    token:        str | None = typer.Option(None, "--token", envvar=TOKEN_ENV, help=f"Registry API token (default: ${TOKEN_ENV})"),
 ) -> None:
     """Validate a dataset against its contract.
 
@@ -37,6 +38,7 @@ def validate(
         validator = DataContractValidator(
             contract_path=contract,
             registry_url=registry_url,
+            registry_token=token,
             notifiers=[],  # CLI never sends notifications
         )
         result = validator.validate()
@@ -57,6 +59,7 @@ def validate(
 def publish(
     contract:     Path = typer.Option(..., "--contract", "-c", help="Path to contract YAML"),
     registry_url: str  = typer.Option(..., "--registry-url", "-r", help="Registry URL"),
+    token:        str | None = typer.Option(None, "--token", envvar=TOKEN_ENV, help=f"Registry API token (default: ${TOKEN_ENV})"),
 ) -> None:
     """Publish a contract to the registry. Exits 1 if the registry can't be
     reached or rejects the contract."""
@@ -64,14 +67,17 @@ def publish(
 
     c = load_contract(contract)
     try:
-        RegistryClient(registry_url).publish_contract(c)
+        created = RegistryClient(registry_url, api_token=token).publish_contract(c)
     except Exception as exc:
         detail = str(exc)
         if isinstance(exc, httpx.HTTPStatusError):
             detail = f"registry returned {exc.response.status_code}: {exc.response.text}"
         typer.echo(f"Error: could not publish {c.metadata.name} v{c.metadata.version} — {detail}", err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(f"Published {c.metadata.name} v{c.metadata.version}")
+    if created:
+        typer.echo(f"Published {c.metadata.name} v{c.metadata.version}")
+    else:
+        typer.echo(f"Already published {c.metadata.name} v{c.metadata.version} (identical content, nothing changed)")
 
 
 @app.command()
@@ -90,11 +96,12 @@ def check(
 @app.command(name="list")
 def list_contracts(
     registry_url: str = typer.Option(..., "--registry-url", "-r", help="Registry URL"),
+    token:        str | None = typer.Option(None, "--token", envvar=TOKEN_ENV, help=f"Registry API token (default: ${TOKEN_ENV})"),
 ) -> None:
     """List all contracts in the registry."""
     import httpx
     try:
-        data = httpx.get(f"{registry_url.rstrip('/')}/contracts/", timeout=10).json()
+        data = httpx.get(f"{registry_url.rstrip('/')}/contracts/", headers=auth_headers(token), timeout=10).json()
         for c in data:
             typer.echo(f"  {c['name']:40s}  v{c['version']}")
     except Exception as exc:
@@ -175,6 +182,7 @@ def _load_diff_contracts(
     old_version: str | None,
     new_version: str | None,
     registry_url: str | None,
+    token: str | None = None,
 ) -> tuple[DataContract, DataContract]:
     """Resolve `akad diff`'s two loading modes into a pair of contracts."""
     if name:
@@ -193,7 +201,7 @@ def _load_diff_contracts(
         if name:
             if not (old_version and new_version and registry_url):
                 raise AssertionError("unreachable — checked above")
-            client = RegistryClient(registry_url)
+            client = RegistryClient(registry_url, api_token=token)
             return client.get_contract_version(name, old_version), client.get_contract_version(name, new_version)
         if not (old_contract and new_contract):
             raise AssertionError("unreachable — checked above")
@@ -212,6 +220,7 @@ def diff(
     new_version:  str | None = typer.Option(None, "--new-version", help="New version (with --name)"),
     registry_url: str | None = typer.Option(None, "--registry-url", "-r", help="Registry URL (with --name)"),
     output:       str = typer.Option("text", "--output", "-o", help="Output format: text|json"),
+    token:        str | None = typer.Option(None, "--token", envvar=TOKEN_ENV, help=f"Registry API token (default: ${TOKEN_ENV})"),
 ) -> None:
     """Compare two contract versions and flag breaking vs non-breaking changes.
 
@@ -221,7 +230,7 @@ def diff(
     """
     from akad.differ import DiffSeverity, diff_contracts
 
-    old, new = _load_diff_contracts(old_contract, new_contract, name, old_version, new_version, registry_url)
+    old, new = _load_diff_contracts(old_contract, new_contract, name, old_version, new_version, registry_url, token)
     entries = diff_contracts(old, new)
     breaking = [e for e in entries if e.severity == DiffSeverity.BREAKING]
 
@@ -248,12 +257,13 @@ def history(
     name:         str = typer.Option(..., "--name", "-n", help="Contract name"),
     registry_url: str = typer.Option(..., "--registry-url", "-r", help="Registry URL"),
     limit:        int = typer.Option(20, "--limit", "-l", help="Number of results"),
+    token:        str | None = typer.Option(None, "--token", envvar=TOKEN_ENV, help=f"Registry API token (default: ${TOKEN_ENV})"),
 ) -> None:
     """Show breach history for a contract."""
     import httpx
     try:
         url  = f"{registry_url.rstrip('/')}/validation-results/?contract_name={name}&limit={limit}"
-        data = httpx.get(url, timeout=10).json()
+        data = httpx.get(url, headers=auth_headers(token), timeout=10).json()
         for r in data:
             icon = "✓" if r["overall_status"] == "COMPLIANT" else "✗"
             typer.echo(f"  {icon} {r['validated_at']}  {r['overall_status']}")

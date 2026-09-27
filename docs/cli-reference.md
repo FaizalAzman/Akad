@@ -10,12 +10,14 @@ akad list      --registry-url URL
 akad history   --name NAME      --registry-url URL     [--limit N]
 ```
 
+Every command that talks to the registry accepts `--token`, defaulting to `$AKAD_API_TOKEN`. Publishing needs a token; reads only need one if the registry requires auth for reads (see [Running the Registry](registry.md#authentication)).
+
 | Command | Purpose | CI-friendly |
 |---|---|---|
 | `akad infer` | Profile an existing dataset and scaffold a starter contract YAML | — |
 | `akad diff` | Compare two contract versions; flag breaking vs non-breaking changes | Yes — fail the build on a breaking contract change |
 | `akad check` | Parse and validate contract YAML syntax without touching data | Yes — catches typos before they hit a pipeline |
-| `akad publish` | Register a contract version with the registry | — |
+| `akad publish` | Register a contract version with the registry. Re-publishing identical content is a no-op; changed content under an existing version is rejected, and the command exits `1` | Yes — publish on merge |
 | `akad validate` | Run full validation against the dataset; exits `0` compliant, `1` breach, `2` could not be evaluated (unreadable dataset, erroring rule, bad contract) | Yes — fail the build on a breach or error |
 | `akad list` | List all current contracts in the registry | — |
 | `akad history` | Show recent validation runs for a contract | — |
