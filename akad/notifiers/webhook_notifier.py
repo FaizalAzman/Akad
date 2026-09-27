@@ -13,22 +13,18 @@ log = logging.getLogger(__name__)
 
 def _build_payload(contract: DataContract, result: ValidationResult) -> dict:
     return {
-        "event":            "DATA_CONTRACT_BREACH",
+        # DATA_CONTRACT_BREACH when the data violated the contract,
+        # DATA_CONTRACT_ERROR when the contract couldn't be evaluated at all.
+        "event":            f"DATA_CONTRACT_{result.overall_status.value}",
+        "overall_status":   result.overall_status.value,
         "contract_name":    result.contract_name,
         "contract_version": result.contract_version,
         "dataset_location": result.dataset_location,
         "validated_at":     result.validated_at.isoformat(),
         "row_count":        result.row_count,
-        "failed_clauses": [
-            {
-                "clause_type":   c.clause_type,
-                "clause_target": c.clause_target,
-                "expected":      str(c.expected),
-                "observed":      str(c.observed),
-                "message":       c.message,
-            }
-            for c in result.failed_clauses
-        ],
+        "error_message":    result.error_message,
+        "failed_clauses":   [c.to_dict() for c in result.failed_clauses],
+        "errored_clauses":  [c.to_dict() for c in result.errored_clauses],
         "on_breach": contract.on_breach,
     }
 

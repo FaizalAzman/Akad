@@ -116,7 +116,7 @@ If the contract can't be evaluated at all (unreadable dataset, erroring rule) th
 
 - `akad infer` — profile an existing dataset and scaffold a starter contract YAML
 - `akad diff` — compare two contract versions, flag breaking vs non-breaking changes (CI-friendly)
-- `akad check` — parse and validate YAML syntax without touching data (CI-safe)
+- `akad check` — parse and validate YAML syntax without touching data; `--strict` also fails on unknown keys (typos) (CI-safe)
 - `akad publish` — register a contract version
 - `akad validate` — run full validation; exit 1 on breach, 2 if it couldn't be evaluated (CI-friendly)
 - `akad list` — list all current contracts in registry
@@ -366,7 +366,7 @@ notifications:
 ```
 akad infer     --name NAME      [--format parquet|sql]  [--location PATH | --connection-string URL --table-name NAME]  [--output PATH]
 akad diff      --old PATH --new PATH | --name NAME --old-version V --new-version V --registry-url URL  [--output text|json]
-akad check     --contract PATH
+akad check     --contract PATH  [--strict]
 akad publish   --contract PATH  --registry-url URL
 akad validate  --contract PATH  [--registry-url URL]  [--output text|json]
 akad list      --registry-url URL

@@ -3,7 +3,7 @@
 ```
 akad infer     --name NAME      [--format parquet|sql]  [--location PATH | --connection-string URL --table-name NAME]  [--output PATH]
 akad diff      --old PATH --new PATH | --name NAME --old-version V --new-version V --registry-url URL  [--output text|json]
-akad check     --contract PATH
+akad check     --contract PATH  [--strict]
 akad publish   --contract PATH  --registry-url URL
 akad validate  --contract PATH  [--registry-url URL]  [--output text|json]
 akad list      --registry-url URL
@@ -16,7 +16,7 @@ Every command that talks to the registry accepts `--token`, defaulting to `$AKAD
 |---|---|---|
 | `akad infer` | Profile an existing dataset and scaffold a starter contract YAML | — |
 | `akad diff` | Compare two contract versions; flag breaking vs non-breaking changes | Yes — fail the build on a breaking contract change |
-| `akad check` | Parse and validate contract YAML syntax without touching data | Yes — catches typos before they hit a pipeline |
+| `akad check` | Parse and validate contract YAML syntax without touching data. Warns about unknown keys; `--strict` fails on them | Yes — run with `--strict` to catch typos before they hit a pipeline |
 | `akad publish` | Register a contract version with the registry. Re-publishing identical content is a no-op; changed content under an existing version is rejected, and the command exits `1` | Yes — publish on merge |
 | `akad validate` | Run full validation against the dataset; exits `0` compliant, `1` breach, `2` could not be evaluated (unreadable dataset, erroring rule, bad contract) | Yes — fail the build on a breach or error |
 | `akad list` | List all current contracts in the registry | — |

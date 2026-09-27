@@ -84,7 +84,7 @@ FastAPI + Jinja2 + Tailwind (CDN, no build step) — overview of all contracts, 
 
 - `akad infer` — profile an existing dataset and scaffold a starter contract YAML
 - `akad diff` — compare two contract versions, flag breaking vs non-breaking changes (CI-friendly)
-- `akad check` — parse and validate YAML syntax without touching data (CI-safe)
+- `akad check` — parse and validate YAML syntax without touching data; `--strict` also fails on unknown keys (typos) (CI-safe)
 - `akad publish` — register a contract version
 - `akad validate` — run full validation; exit 1 on breach, 2 if it couldn't be evaluated (CI-friendly)
 - `akad list` — list all current contracts in registry

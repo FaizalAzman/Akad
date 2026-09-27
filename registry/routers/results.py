@@ -49,5 +49,4 @@ def get_result(result_id: int, db: Session = Depends(get_db)):
     record = db.get(ValidationResultRecord, result_id)
     if not record:
         raise HTTPException(status_code=404, detail=f"Validation result {result_id} not found")
-    record.clause_results = json.loads(record.clause_results)  # type: ignore[assignment]
     return record

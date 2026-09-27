@@ -362,10 +362,9 @@ class TestHistory:
         assert result.exit_code == 0
         assert "COMPLIANT" in result.output
         assert "BREACH" in result.output
-        url = get.call_args[0][0]
-        assert url.startswith("http://localhost:8000/validation-results/")
-        assert "contract_name=daily_sales" in url
-        assert "limit=5" in url
+        assert get.call_args[0][0] == "http://localhost:8000/validation-results/"
+        # query parameters go through httpx, which escapes them
+        assert get.call_args.kwargs["params"] == {"limit": 5, "contract_name": "daily_sales"}
 
     def test_unreachable_registry_exits_one(self):
         with patch("httpx.get", side_effect=ConnectionError("refused")):

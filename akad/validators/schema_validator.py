@@ -11,7 +11,7 @@ from akad.models.result import ClauseResult, ClauseStatus
 from akad.validators.base import Validator
 
 
-def _is_integer_like(s: pd.Series) -> bool:
+def is_integer_like(s: pd.Series) -> bool:
     """True for real integer dtypes, and for float columns where every
     non-null value is a whole number — pandas promotes an otherwise-integer
     column to float64 as soon as it contains a single null."""
@@ -50,7 +50,7 @@ _TYPE_CHECKS = {
         or str(s.dtype) in ("string", "str")
         or pd.api.types.is_string_dtype(s)
     ),
-    ColumnType.INTEGER:   _is_integer_like,
+    ColumnType.INTEGER:   is_integer_like,
     ColumnType.FLOAT:     lambda s: pd.api.types.is_float_dtype(s),
     ColumnType.BOOLEAN:   lambda s: pd.api.types.is_bool_dtype(s),
     ColumnType.DATE:      _is_date_like,

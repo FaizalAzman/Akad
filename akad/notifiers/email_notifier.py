@@ -21,18 +21,21 @@ def _collect_recipients(contract: DataContract) -> list[str]:
 
 def _build_email_body(result: ValidationResult) -> str:
     lines = [
-        "Akad Breach Alert",
+        f"Akad {result.overall_status.value.title()} Alert",
         "",
         f"Contract : {result.contract_name} v{result.contract_version}",
         f"Dataset  : {result.dataset_location}",
         f"Time     : {result.validated_at.isoformat()}",
         f"Rows     : {result.row_count}",
-        "",
-        f"Failed Clauses ({len(result.failed_clauses)}):",
     ]
-    for c in result.failed_clauses:
-        target = f" [{c.clause_target}]" if c.clause_target else ""
-        lines.append(f"  • {c.clause_type}{target}: {c.message}")
+    if result.error_message:
+        lines += ["", f"Error    : {result.error_message}"]
+    for heading, clauses in (("Failed", result.failed_clauses), ("Errored", result.errored_clauses)):
+        if clauses:
+            lines += ["", f"{heading} Clauses ({len(clauses)}):"]
+            for c in clauses:
+                target = f" [{c.clause_target}]" if c.clause_target else ""
+                lines.append(f"  • {c.clause_type}{target}: {c.message}")
     return "\n".join(lines)
 
 
@@ -47,7 +50,7 @@ class EmailNotifier(Notifier):
         body = _build_email_body(result)
         try:
             msg = MIMEText(body)
-            msg["Subject"] = f"[Akad BREACH] {contract.metadata.name} v{contract.metadata.version}"
+            msg["Subject"] = f"[Akad {result.overall_status.value}] {contract.metadata.name} v{contract.metadata.version}"
             msg["From"]    = cfg.smtp_user
             msg["To"]      = ", ".join(recipients)
             password = os.environ.get(cfg.smtp_password_env, "")
