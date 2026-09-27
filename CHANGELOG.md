@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/), versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.4.0] - 2026-09-27
 
 ### Fixed
 - **Validation fails closed.** When the contract couldn't be evaluated (unreadable dataset, erroring rule) the result is `ERROR`. Previously that passed silently: `akad validate` exited `0` and the SDK returned normally even under `on_breach: fail`. Now `on_breach: fail` raises the new `DataContractEvaluationError`, and `akad validate` exits `2` in either mode and prints the reason. `--output json` gains `error_message` and `errored_clauses`.
