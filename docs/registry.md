@@ -2,6 +2,28 @@
 
 The registry stores contract versions and validation history. This page covers what an operator needs: authentication, how versions behave, and schema migrations.
 
+## Upgrading from 1.x
+
+Version 2.0 changes the registry in two ways that existing deployments must plan for: **writes need an API token**, and **published versions can't be changed**. Pipelines that validate without a registry are unaffected.
+
+Upgrade in this order. A 1.x client ignores `AKAD_API_TOKEN` and a 1.x registry ignores the `Authorization` header, so doing clients first means there's never a window where pipelines lose their results.
+
+1. **Back up the registry database.**
+2. **Check for duplicate versions.** Registries before 2.0 let a version be published twice, and 2.0's startup migration stops if it finds any, without deleting anything:
+
+    ```sql
+    SELECT name, version, COUNT(*) FROM contracts GROUP BY name, version HAVING COUNT(*) > 1;
+    ```
+
+    For each duplicate, keep the authoritative row and delete the others (see [below](#if-startup-stops-with-published-more-than-once)).
+3. **Generate tokens.** Create one per client group, such as CI and Airflow.
+4. **Give every client its token as `AKAD_API_TOKEN`.** That covers CI jobs that run `akad publish` or `akad validate --registry-url`, Airflow workers and other pipelines that pass `registry_url` to `DataContractValidator`, and the dashboard (only needed if you'll require auth for reads).
+5. **Upgrade clients to 2.0:** `pip install -U akad-framework`.
+6. **Upgrade the registry,** starting it with `AKAD_API_TOKENS` set to the tokens from step 3. The schema migration runs automatically on startup.
+7. **Check it:** `curl <registry>/health/`, then `akad publish` a contract from CI. A pipeline run should appear in `akad history`.
+
+After the upgrade, a CI job that re-publishes an **unchanged** contract keeps working, because an identical re-publish is a no-op. A job that changes a contract **without bumping its version** now fails with `409`. That's intended: bump the version.
+
 ## Authentication
 
 Every write needs a bearer token. That covers publishing a contract (`POST /contracts/`) and posting a validation result (`POST /validation-results/`). Reads are open by default.

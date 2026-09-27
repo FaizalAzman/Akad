@@ -2,7 +2,9 @@
 
 All notable changes to this project are documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/), versioning follows [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0] - 2026-09-27
+
+Only registry deployments are affected. Pipelines that validate without a registry need no changes. See [Upgrading from 1.x](https://parmenidessartre.github.io/Akad/registry/#upgrading-from-1x) for the rollout order.
 
 ### Breaking (registry)
 - **Registry writes need an API token.** `POST /contracts/` and `POST /validation-results/` require `Authorization: Bearer <token>`, checked against `AKAD_API_TOKENS` (comma-separated). With no tokens configured, writes are refused. Clients send `$AKAD_API_TOKEN`, or `--token` on the CLI, or `registry_token=` on `DataContractValidator`. Set `AKAD_REGISTRY_READS_REQUIRE_AUTH=true` to require a token for reads too. A pipeline posting a result without a valid token still completes its run, with a warning.
